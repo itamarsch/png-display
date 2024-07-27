@@ -54,7 +54,7 @@ fn parse_png(input: &[u8]) -> IResult<&[u8], (IhdrChunk, Vec<PngChunk>)> {
 }
 
 fn main() -> Result<()> {
-    let mut file = File::open("NewTux.png")?;
+    let mut file = File::open(std::env::args().nth(1).unwrap())?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
 
@@ -85,7 +85,7 @@ fn main() -> Result<()> {
         ihdr::ColorType::Rgba => 4,
     };
     let bits_in_scanline = ihdr.bit_depth as u32 * bit_depths_per_pixel * ihdr.width;
-    let scanline_len = 1 + bits_in_scanline as usize / 8;
+    let scanline_len = 1 + (bits_in_scanline as usize).div_ceil(8);
 
     let mut scanline = vec![0; scanline_len];
     let mut decoded = vec![0; scanline_len - 1];
