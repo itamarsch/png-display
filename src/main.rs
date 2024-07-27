@@ -1,20 +1,23 @@
 use anyhow::Result;
 use bitreader::BitReader;
 use chunk::PngChunk;
-use draw_image::display_pixels;
+use draw_image::display_image;
 use ihdr::IhdrChunk;
-use nom::{bytes::complete::tag, number::complete::u8, IResult};
+use nom::{bytes::complete::tag, IResult};
 use std::fs::File;
 use std::io::Read;
 
 use crate::chunk::parse_chunks;
 use crate::ihdr::parse_ihdr;
 use crate::plte::{parse_palette, Palette, PaletteEntries};
+use std::io::Write;
 
 mod chunk;
 mod draw_image;
 mod ihdr;
 mod plte;
+
+const IDAT: &str = "IDAT";
 
 fn parse_png(input: &[u8]) -> IResult<&[u8], (IhdrChunk, Vec<PngChunk>)> {
     const MAGIC_NUMBER: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
@@ -22,10 +25,14 @@ fn parse_png(input: &[u8]) -> IResult<&[u8], (IhdrChunk, Vec<PngChunk>)> {
     let (input, _) = tag(MAGIC_NUMBER)(input)?;
 
     let (input, mut chunks) = parse_chunks(input)?;
+    println!(
+        "{:?}",
+        chunks.iter().map(|e| e.chunk_type).collect::<Vec<_>>()
+    );
 
     let palette = if let Some(i) = chunks.iter().position(|elem| elem.chunk_type == plte::PLTE) {
         let plte = chunks.remove(i);
-        let trns = if let Some(i) = chunks.iter().position(|elem| elem.chunk_type == plte::tRNS) {
+        let trns = if let Some(i) = chunks.iter().position(|elem| elem.chunk_type == plte::TRNS) {
             let trns = chunks.remove(i);
             Some(trns.data)
         } else {
@@ -46,7 +53,7 @@ fn parse_png(input: &[u8]) -> IResult<&[u8], (IhdrChunk, Vec<PngChunk>)> {
 }
 
 fn main() -> Result<()> {
-    let mut file = File::open("pixels.png")?;
+    let mut file = File::open("spiderman.png")?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
 
@@ -60,16 +67,12 @@ fn main() -> Result<()> {
     let mut pixels = vec![];
     let data = chunks[idat..]
         .iter()
-        .take_while(|elem| elem.chunk_type == "IDAT")
-        .flat_map(|chunk| {
-            if ihdr.compression_method == 0 {
-                inflate::inflate_bytes_zlib(chunk.data).unwrap()
-            } else {
-                todo!()
-            }
-        })
+        .take_while(|elem| elem.chunk_type == IDAT)
+        .flat_map(|chunk| chunk.data)
+        .copied()
         .collect::<Vec<_>>();
 
+    let data = inflate::inflate_bytes_zlib(&data).unwrap();
     let mut bitreader = BitReader::new(&data[..]);
 
     for i in 0..ihdr.height {
@@ -91,9 +94,12 @@ fn main() -> Result<()> {
                 }
 
                 ihdr::ColorType::Palette(Palette {
-                    entries: PaletteEntries::RGB(_),
-                }) => todo!(),
-
+                    entries: PaletteEntries::RGB(values),
+                }) => {
+                    let index = bitreader.read_u8(ihdr.bit_depth)?;
+                    let (r, g, b) = values[index as usize];
+                    pixels[i as usize].push((r, g, b, 255));
+                }
                 ihdr::ColorType::GrayscaleAlpha => todo!(),
                 ihdr::ColorType::Rgba => todo!(),
             }
@@ -102,6 +108,6 @@ fn main() -> Result<()> {
         _ = bitreader.read_u8(rem_bits as u8);
     }
 
-    display_pixels(pixels, 100);
+    display_image(pixels);
     Ok(())
 }

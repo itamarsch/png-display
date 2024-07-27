@@ -24,7 +24,7 @@ pub enum ColorType {
 }
 
 impl ColorType {
-    fn from_u8<'a>(value: u8, plte: Option<Palette>) -> Option<ColorType> {
+    fn from_u8(value: u8, plte: Option<Palette>) -> Option<ColorType> {
         match value {
             0 => Some(ColorType::Grayscale),
             2 => Some(ColorType::Rgb),

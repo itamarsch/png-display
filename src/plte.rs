@@ -1,7 +1,7 @@
 use nom::{number::complete::u8, IResult};
 
 pub const PLTE: &str = "PLTE";
-pub const tRNS: &str = "tRNS";
+pub const TRNS: &str = "tRNS";
 
 #[derive(Debug)]
 pub enum PaletteEntries {

@@ -2,7 +2,6 @@ use nom::{bytes::complete::take, number::complete::be_u32, IResult};
 
 #[derive(Debug)]
 pub struct PngChunk<'a> {
-    pub length: u32,
     pub chunk_type: &'a str,
     pub data: &'a [u8],
     pub crc: u32,
@@ -24,7 +23,6 @@ fn parse_chunk(input: &[u8]) -> IResult<&[u8], PngChunk> {
     Ok((
         input,
         PngChunk {
-            length,
             chunk_type,
             data,
             crc,
