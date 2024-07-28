@@ -89,24 +89,28 @@ fn main() -> Result<()> {
 
     let mut scanline = vec![0; scanline_len];
     let mut decoded = vec![0; scanline_len - 1];
+
+    let bpp = ((ihdr.bit_depth as f32 / 8.0) * bit_depths_per_pixel as f32).round() as usize;
     for i in 0..ihdr.height {
         bitreader.read_u8_slice(&mut scanline)?;
 
         decode_scanline(
             &scanline[..],
             prev_scanline.as_ref().map(|v: &Vec<u8>| &v[..]),
-            ((ihdr.bit_depth as f32 / 8.0) * bit_depths_per_pixel as f32).round() as usize,
+            bpp,
             &mut decoded,
         );
 
         let mut scanline_reader = BitReader::new(&decoded);
 
         for j in 0..ihdr.width {
-            match &ihdr.color_type {
+            pixels[i as usize][j as usize] = match &ihdr.color_type {
                 ihdr::ColorType::Grayscale => {
                     if ihdr.bit_depth == 8 {
                         let gray_scale = scanline_reader.read_u8(ihdr.bit_depth)?;
-                        pixels[i as usize][j as usize] = (gray_scale, gray_scale, gray_scale, 255);
+                        (gray_scale, gray_scale, gray_scale, 255)
+                    } else {
+                        todo!()
                     }
                 }
                 ihdr::ColorType::Rgb => todo!(),
@@ -114,8 +118,7 @@ fn main() -> Result<()> {
                     entries: PaletteEntries::RGBA(values),
                 }) => {
                     let index = scanline_reader.read_u8(ihdr.bit_depth)?;
-                    let pixel = values[index as usize];
-                    pixels[i as usize][j as usize] = pixel;
+                    values[index as usize]
                 }
 
                 ihdr::ColorType::Palette(Palette {
@@ -123,7 +126,7 @@ fn main() -> Result<()> {
                 }) => {
                     let index = scanline_reader.read_u8(ihdr.bit_depth)?;
                     let (r, g, b) = values[index as usize];
-                    pixels[i as usize][j as usize] = (r, g, b, 255);
+                    (r, g, b, 255)
                 }
                 ihdr::ColorType::GrayscaleAlpha => todo!(),
                 ihdr::ColorType::Rgba => {
@@ -132,7 +135,9 @@ fn main() -> Result<()> {
                         let g = scanline_reader.read_u8(8)?;
                         let b = scanline_reader.read_u8(8)?;
                         let a = scanline_reader.read_u8(8)?;
-                        pixels[i as usize][j as usize] = (r, g, b, a);
+                        (r, g, b, a)
+                    } else {
+                        todo!()
                     }
                 }
             }

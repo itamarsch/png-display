@@ -37,71 +37,66 @@ pub fn decode_scanline(
         _ => panic!("Invalid filter! {:?}", filtered_scanline[0]),
     };
 
+    let filtered_scanline = &filtered_scanline[1..]; // Shift the slice to exclude the first byte
+
     match filter_type {
         PngFilterType::None => {
-            // No filter; copy data directly
-            for (i, v) in filtered_scanline[1..].iter().enumerate() {
-                decoded_scanline[i] = *v;
-            }
+            decoded_scanline.copy_from_slice(filtered_scanline);
         }
         PngFilterType::Sub => {
-            // Sub filter; decode it
-            for i in 1..filtered_scanline.len() {
-                if i <= bytes_per_pixel {
-                    decoded_scanline[i - 1] = filtered_scanline[i];
+            for i in 0..filtered_scanline.len() {
+                if i < bytes_per_pixel {
+                    decoded_scanline[i] = filtered_scanline[i];
                 } else {
-                    let decoded_byte = filtered_scanline[i]
-                        .wrapping_add(decoded_scanline[i - bytes_per_pixel - 1]);
-                    decoded_scanline[i - 1] = decoded_byte;
+                    let decoded_byte =
+                        filtered_scanline[i].wrapping_add(decoded_scanline[i - bytes_per_pixel]);
+                    decoded_scanline[i] = decoded_byte;
                 }
             }
         }
         PngFilterType::Up => {
-            // Up filter; decode it
-            for i in 1..filtered_scanline.len() {
+            for i in 0..filtered_scanline.len() {
                 let above = if let Some(previous) = previous_scanline {
-                    previous[i - 1]
+                    previous[i]
                 } else {
                     0
                 };
                 let decoded_byte = filtered_scanline[i].wrapping_add(above);
-                decoded_scanline[i - 1] = decoded_byte;
+                decoded_scanline[i] = decoded_byte;
             }
         }
         PngFilterType::Average => {
-            // Average filter; decode it
-            for i in 1..filtered_scanline.len() {
-                let left = if i > bytes_per_pixel {
-                    decoded_scanline[i - bytes_per_pixel - 1]
+            for i in 0..filtered_scanline.len() {
+                let left = if i >= bytes_per_pixel {
+                    decoded_scanline[i - bytes_per_pixel]
                 } else {
                     0
                 };
                 let above = if let Some(previous) = previous_scanline {
-                    previous[i - 1]
+                    previous[i]
                 } else {
                     0
                 };
                 let decoded_byte =
                     filtered_scanline[i].wrapping_add(((left as u16 + above as u16) / 2) as u8);
-                decoded_scanline[i - 1] = decoded_byte;
+                decoded_scanline[i] = decoded_byte;
             }
         }
         PngFilterType::Paeth => {
-            // Paeth filter; decode it
-            for i in 1..filtered_scanline.len() {
-                let left = if i > bytes_per_pixel {
-                    decoded_scanline[i - bytes_per_pixel - 1]
+            for i in 0..filtered_scanline.len() {
+                let left = if i >= bytes_per_pixel {
+                    decoded_scanline[i - bytes_per_pixel]
                 } else {
                     0
                 };
                 let above = if let Some(previous) = previous_scanline {
-                    previous[i - 1]
+                    previous[i]
                 } else {
                     0
                 };
                 let top_left = if let Some(previous) = previous_scanline {
-                    if i > bytes_per_pixel {
-                        previous[i - bytes_per_pixel - 1]
+                    if i >= bytes_per_pixel {
+                        previous[i - bytes_per_pixel]
                     } else {
                         0
                     }
@@ -110,7 +105,7 @@ pub fn decode_scanline(
                 };
                 let decoded_byte =
                     filtered_scanline[i].wrapping_add(paeth_predictor(left, above, top_left));
-                decoded_scanline[i - 1] = decoded_byte;
+                decoded_scanline[i] = decoded_byte;
             }
         }
     }
