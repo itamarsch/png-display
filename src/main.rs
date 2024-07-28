@@ -103,7 +103,12 @@ fn main() -> Result<()> {
 
         for j in 0..ihdr.width {
             match &ihdr.color_type {
-                ihdr::ColorType::Grayscale => todo!(),
+                ihdr::ColorType::Grayscale => {
+                    if ihdr.bit_depth == 8 {
+                        let gray_scale = scanline_reader.read_u8(ihdr.bit_depth)?;
+                        pixels[i as usize][j as usize] = (gray_scale, gray_scale, gray_scale, 255);
+                    }
+                }
                 ihdr::ColorType::Rgb => todo!(),
                 ihdr::ColorType::Palette(Palette {
                     entries: PaletteEntries::RGBA(values),

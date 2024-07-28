@@ -40,7 +40,7 @@ pub fn decode_scanline(
     match filter_type {
         PngFilterType::None => {
             // No filter; copy data directly
-            for (i, v) in (&filtered_scanline[1..]).iter().enumerate() {
+            for (i, v) in filtered_scanline[1..].iter().enumerate() {
                 decoded_scanline[i] = *v;
             }
         }
