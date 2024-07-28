@@ -12,7 +12,6 @@ fn parse_chunk(input: &[u8]) -> IResult<&[u8], PngChunk> {
     let (input, data) = take(length)(input)?;
     let (input, crc) = be_u32(input)?;
     let calculated_crc = calculate_crc(chunk_type, data);
-    println!("Crc: {:?}, Calc: {:?}", crc, calculated_crc);
     if crc != calculated_crc {
         panic!("Invalid crc!!");
     }

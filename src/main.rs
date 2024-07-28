@@ -4,19 +4,23 @@ use chunk::PngChunk;
 use draw_image::display_image;
 use filter_apply::decode_scanline;
 use ihdr::IhdrChunk;
+use nom::bytes::streaming::take_until;
 use nom::{bytes::complete::tag, IResult};
 use std::fs::File;
 use std::io::Read;
+use text::{parse_iTXt, parse_tEXt};
 
 use crate::chunk::parse_chunks;
 use crate::ihdr::parse_ihdr;
 use crate::plte::{parse_palette, Palette, PaletteEntries};
+use crate::text::parse_zTXt;
 
 mod chunk;
 mod draw_image;
 mod filter_apply;
 mod ihdr;
 mod plte;
+mod text;
 
 const IDAT: &str = "IDAT";
 
@@ -59,6 +63,33 @@ fn main() -> Result<()> {
     file.read_to_end(&mut buf)?;
 
     let (_, (ihdr, chunks)) = parse_png(&buf).unwrap();
+    let text = chunks
+        .iter()
+        .filter(|chunk| chunk.chunk_type == "tEXt")
+        .collect::<Vec<_>>();
+    for chunk in text {
+        let (keyword, value) = parse_tEXt(chunk.data)?;
+        println!("tEXt. {}: {}", keyword, value);
+    }
+    let iTXt = chunks
+        .iter()
+        .filter(|chunk| chunk.chunk_type == "iTXt")
+        .collect::<Vec<_>>();
+
+    for chunk in iTXt {
+        let (_, itxt) = parse_iTXt(chunk.data).unwrap();
+        println!("iTXt. {:?}", itxt);
+    }
+
+    let zTXt = chunks
+        .iter()
+        .filter(|chunk| chunk.chunk_type == "zTXt")
+        .collect::<Vec<_>>();
+
+    for chunk in zTXt {
+        let (_, (keyword, text)) = parse_zTXt(chunk.data).unwrap();
+        println!("zTXt. {:?}, {:?}", keyword, text);
+    }
 
     let idat = chunks
         .iter()
