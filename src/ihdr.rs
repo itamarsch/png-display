@@ -37,6 +37,15 @@ impl ColorType {
             _ => None,
         }
     }
+    pub fn values_per_pixel(&self) -> u8 {
+        match &self {
+            ColorType::Grayscale => 1,
+            ColorType::Rgb => 3,
+            ColorType::Palette(_) => 1,
+            ColorType::GrayscaleAlpha => 2,
+            ColorType::Rgba => 4,
+        }
+    }
 }
 
 pub fn parse_ihdr(input: &[u8], plte: Option<Palette>) -> IResult<&[u8], IhdrChunk> {
