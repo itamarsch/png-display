@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use minifb::{Key, Window, WindowOptions};
 fn rgb_to_hex(r: u32, g: u32, b: u32) -> u32 {
     (r << 16) | (g << 8) | b
@@ -54,8 +56,12 @@ pub fn display_image(image_data: Vec<Vec<(u8, u8, u8, u8)>>) {
             panic!("{}", e);
         });
 
+    let start_time = Instant::now();
     // Display the image
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window.update_with_buffer(&buffer, width, height).unwrap();
+        if (Instant::now() - start_time).as_secs_f32() > 1.0 {
+            break;
+        }
     }
 }
