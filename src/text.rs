@@ -1,5 +1,7 @@
 use nom::{bytes::complete::take_until, number::complete::u8, IResult};
 
+use crate::ihdr::CompressionMethod;
+
 #[derive(Debug)]
 pub struct TextChunk<'a> {
     pub keyword: &'a str,
@@ -36,8 +38,10 @@ impl<'a> CompressedTextChunk<'a> {
         let (input, _) = u8(input)?;
         let keyword = std::str::from_utf8(keyword).unwrap();
 
-        let (input, comression_method) = u8(input)?;
-        assert_eq!(comression_method, 0);
+        let (input, compression_method) = u8(input)?;
+
+        let CompressionMethod::Zlib = CompressionMethod::from_u8(compression_method).unwrap();
+
         let text = String::from_utf8(inflate::inflate_bytes_zlib(input).unwrap()).unwrap();
 
         Ok((input, CompressedTextChunk { text, keyword }))
@@ -52,6 +56,20 @@ pub struct InternationalTextChunk<'a> {
     pub text: String,
 }
 
+enum CompressionFlags {
+    Compression,
+    NoCompression,
+}
+impl CompressionFlags {
+    fn from_u8(value: u8) -> Option<CompressionFlags> {
+        match value {
+            0 => Some(CompressionFlags::NoCompression),
+            1 => Some(CompressionFlags::Compression),
+            _ => None,
+        }
+    }
+}
+
 impl<'a> InternationalTextChunk<'a> {
     pub const CHUNK_TYPE: &'static str = "iTXt";
     pub fn parse(input: &'a [u8]) -> IResult<&'a [u8], Self> {
@@ -61,7 +79,9 @@ impl<'a> InternationalTextChunk<'a> {
         let keyword = std::str::from_utf8(keyword).unwrap();
         let (input, compression_flags) = u8(input)?;
         let (input, compression_method) = u8(input)?;
-        assert_eq!(compression_method, 0);
+
+        let CompressionMethod::Zlib = CompressionMethod::from_u8(compression_method).unwrap();
+        let compression_flag = CompressionFlags::from_u8(compression_flags).unwrap();
 
         let (input, language_tag) = take_until(&[0][..])(input)?;
         let (input, _) = u8(input)?;
@@ -70,10 +90,10 @@ impl<'a> InternationalTextChunk<'a> {
         let (input, translated) = take_until(&[0][..])(input)?;
         let (input, _) = u8(input)?;
         let translated_keyword = std::str::from_utf8(translated).unwrap();
-        let text = if compression_flags == 0 {
-            input.to_owned()
-        } else {
-            inflate::inflate_bytes_zlib(input).unwrap()
+
+        let text = match compression_flag {
+            CompressionFlags::NoCompression => input.to_owned(),
+            CompressionFlags::Compression => inflate::inflate_bytes_zlib(input).unwrap(),
         };
 
         let text = String::from_utf8(text).unwrap();

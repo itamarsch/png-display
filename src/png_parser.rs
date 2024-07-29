@@ -116,10 +116,9 @@ impl<'a> Png<'a> {
     }
 
     pub fn get_pixels(&self) -> anyhow::Result<Image> {
-        if self.ihdr.interlace_method == 0 {
-            self.get_pixels_no_interlace()
-        } else {
-            self.get_pixels_adam7()
+        match self.ihdr.interlace_method {
+            ihdr::InterlaceMethod::Adam7 => self.get_pixels_adam7(),
+            ihdr::InterlaceMethod::None => self.get_pixels_no_interlace(),
         }
     }
 
