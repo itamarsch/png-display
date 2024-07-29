@@ -3,24 +3,24 @@ use nom::{bytes::complete::take_until, number::complete::u8, IResult};
 use crate::ihdr::CompressionMethod;
 
 #[derive(Debug)]
-pub struct TextChunk<'a> {
-    pub keyword: &'a str,
-    pub text: &'a str,
+pub struct TextChunk {
+    pub keyword: String,
+    pub text: String,
 }
-impl<'a> TextChunk<'a> {
+impl TextChunk {
     pub const CHUNK_TYPE: &'static str = "tEXt";
-    pub fn parse(data: &'a [u8]) -> anyhow::Result<Self> {
-        let s = data
+    pub fn parse(data: &[u8]) -> anyhow::Result<Self> {
+        let mut s = data
             .split(|a| *a == 0)
-            .map(|s| std::str::from_utf8(s))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|s| s.iter().map(|c| *c as char).collect::<String>())
+            .collect::<Vec<String>>();
 
         if s.len() != 2 {
             anyhow::bail!("Invalid tEXt multiple null bytes");
         }
         Ok(TextChunk {
-            keyword: s[0],
-            text: s[1],
+            keyword: s.remove(0),
+            text: s.remove(0),
         })
     }
 }

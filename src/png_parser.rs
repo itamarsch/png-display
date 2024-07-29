@@ -16,7 +16,7 @@ type Image = Vec<Vec<Pixel>>;
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum Chunk<'a> {
-    tEXt(TextChunk<'a>),
+    tEXt(TextChunk),
     zTXt(CompressedTextChunk<'a>),
     iTXt(InternationalTextChunk<'a>),
     Unknown(RawChunk<'a>),
@@ -132,7 +132,21 @@ impl<'a> Png<'a> {
                     todo!()
                 }
             }
-            ihdr::ColorType::Rgb => todo!(),
+            ihdr::ColorType::Rgb => {
+                if self.ihdr.bit_depth == 8 {
+                    let r = scanline_reader.read_u8(8)?;
+                    let g = scanline_reader.read_u8(8)?;
+                    let b = scanline_reader.read_u8(8)?;
+                    (r, g, b, 255)
+                } else if self.ihdr.bit_depth == 16 {
+                    let r = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    let g = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    let b = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    (r, g, b, 255)
+                } else {
+                    todo!("Implement bitdepth: {}", self.ihdr.bit_depth);
+                }
+            }
             ihdr::ColorType::Palette(Palette {
                 entries: PaletteEntries::RGBA(values),
             }) => {
@@ -155,8 +169,14 @@ impl<'a> Png<'a> {
                     let b = scanline_reader.read_u8(8)?;
                     let a = scanline_reader.read_u8(8)?;
                     (r, g, b, a)
+                } else if self.ihdr.bit_depth == 16 {
+                    let r = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    let g = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    let b = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    let a = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    (r, g, b, a)
                 } else {
-                    todo!()
+                    todo!("Implement bitdepth: {}", self.ihdr.bit_depth);
                 }
             }
         };
