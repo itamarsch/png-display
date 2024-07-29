@@ -1,12 +1,12 @@
 use nom::{bytes::complete::take, number::complete::be_u32, IResult};
 
 #[derive(Debug)]
-pub struct PngChunk<'a> {
+pub struct RawChunk<'a> {
     pub chunk_type: &'a str,
     pub data: &'a [u8],
 }
 
-fn parse_chunk(input: &[u8]) -> IResult<&[u8], PngChunk> {
+fn parse_chunk(input: &[u8]) -> IResult<&[u8], RawChunk> {
     let (input, length) = be_u32(input)?;
     let (input, chunk_type) = take(4usize)(input)?;
     let (input, data) = take(length)(input)?;
@@ -23,7 +23,7 @@ fn parse_chunk(input: &[u8]) -> IResult<&[u8], PngChunk> {
         ))
     })?;
 
-    Ok((input, PngChunk { chunk_type, data }))
+    Ok((input, RawChunk { chunk_type, data }))
 }
 
 fn calculate_crc(chunk_type: &[u8], chunk_data: &[u8]) -> u32 {
@@ -33,7 +33,7 @@ fn calculate_crc(chunk_type: &[u8], chunk_data: &[u8]) -> u32 {
     hasher.finalize()
 }
 
-pub fn parse_chunks(input: &[u8]) -> IResult<&[u8], Vec<PngChunk>> {
+pub fn parse_chunks(input: &[u8]) -> IResult<&[u8], Vec<RawChunk>> {
     let mut chunks = Vec::new();
     let mut remaining_input = input;
 

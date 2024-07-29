@@ -36,6 +36,9 @@ pub fn decode_scanline(
         4 => PngFilterType::Paeth,
         _ => panic!("Invalid filter! {:?}", filtered_scanline[0]),
     };
+    if !matches!(filter_type, PngFilterType::None) {
+        // println!("{:?}", filter_type);
+    }
 
     let filtered_scanline = &filtered_scanline[1..]; // Shift the slice to exclude the first byte
 
