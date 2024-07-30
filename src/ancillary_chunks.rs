@@ -3,10 +3,11 @@ use crate::{chunk::RawChunk, ihdr::IhdrChunk};
 use color_print::cprintln;
 use text::{CompressedTextChunk, InternationalTextChunk, TextChunk};
 
-use self::background::Background;
+use self::{background::Background, time::Time};
 
 pub mod background;
 pub mod text;
+pub mod time;
 
 pub struct AncillaryChunks<'a>(pub Vec<AncillaryChunk<'a>>);
 
@@ -25,6 +26,7 @@ impl AncillaryChunks<'_> {
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AncillaryChunk<'a> {
+    tIME(Time),
     bKGD(Background),
     tEXt(TextChunk<'a>),
     zTXt(CompressedTextChunk<'a>),
@@ -39,6 +41,7 @@ impl<'a> AncillaryChunk<'a> {
             AncillaryChunk::tEXt(_) => TextChunk::CHUNK_TYPE,
             AncillaryChunk::zTXt(_) => CompressedTextChunk::CHUNK_TYPE,
             AncillaryChunk::iTXt(_) => InternationalTextChunk::CHUNK_TYPE,
+            AncillaryChunk::tIME(_) => Time::CHUNK_TYPE,
             AncillaryChunk::Unknown(c) => c.chunk_type,
         }
     }
@@ -63,6 +66,7 @@ pub fn parse_ancillary_chunks<'a>(
                 &ihdr.color_type,
                 ihdr.bit_depth,
             )),
+            Time::CHUNK_TYPE => AncillaryChunk::tIME(Time::parse(&chunk.data).unwrap().1),
 
             _ => AncillaryChunk::Unknown(chunk),
         })
@@ -83,6 +87,9 @@ impl<'a> AncillaryChunk<'a> {
             }
             AncillaryChunk::bKGD(b) => {
                 cprintln!("<green>{:?}</green>", b.color);
+            }
+            AncillaryChunk::tIME(chunk) => {
+                cprintln!("<green>{}</green>", chunk);
             }
             AncillaryChunk::Unknown(_) => {
                 cprintln!("<green>Unknown chunk type</green>")
