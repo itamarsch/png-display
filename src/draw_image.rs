@@ -8,21 +8,30 @@ fn rgb_to_hex(r: u32, g: u32, b: u32) -> u32 {
 fn lerp(a: u32, b: u32, t: f32) -> u32 {
     (a as f32 * t + b as f32 * (1.0 - t)) as u32
 }
-pub fn display_image(image_data: Vec<Vec<(u8, u8, u8, u8)>>) {
+
+pub fn display_image(image_data: Vec<Vec<(u8, u8, u8, u8)>>, scale: f32) {
     let height = image_data.len();
     let width = image_data[0].len();
     let grid_size = 10;
 
-    // Create a buffer for the image with grid background
-    let mut buffer: Vec<u32> = vec![0; width * height];
+    // Calculate new dimensions
+    let new_width = (width as f32 * scale).ceil() as usize;
+    let new_height = (height as f32 * scale).ceil() as usize;
 
-    for y in 0..height {
-        for x in 0..width {
-            let (r, g, b, a) = image_data[y][x];
+    // Create a buffer for the image with grid background
+    let mut buffer: Vec<u32> = vec![0; new_width * new_height];
+
+    for new_y in 0..new_height {
+        for new_x in 0..new_width {
+            // Map the new coordinates back to the original image using nearest-neighbor scaling
+            let orig_x = (new_x as f32 / scale).floor() as usize;
+            let orig_y = (new_y as f32 / scale).floor() as usize;
+
+            let (r, g, b, a) = image_data[orig_y][orig_x];
 
             // Determine if this pixel is part of the grid pattern
-            let is_grid = ((x / grid_size) % 2 == 0 && (y / grid_size) % 2 == 0)
-                || ((x / grid_size) % 2 == 1 && (y / grid_size) % 2 == 1);
+            let is_grid = ((new_x / grid_size) % 2 == 0 && (new_y / grid_size) % 2 == 0)
+                || ((new_x / grid_size) % 2 == 1 && (new_y / grid_size) % 2 == 1);
 
             let grid_color = if is_grid { 0xCCCCCC } else { 0xFFFFFF };
 
@@ -46,21 +55,28 @@ pub fn display_image(image_data: Vec<Vec<(u8, u8, u8, u8)>>) {
             } else {
                 rgb_to_hex(r as u32, g as u32, b as u32)
             };
-            buffer[y * width + x] = pixel;
+            buffer[new_y * new_width + new_x] = pixel;
         }
     }
 
     // Create a window to display the image
-    let mut window = Window::new("Image Display", width, height, WindowOptions::default())
-        .unwrap_or_else(|e| {
-            panic!("{}", e);
-        });
+    let mut window = Window::new(
+        "Image Display",
+        new_width,
+        new_height,
+        WindowOptions::default(),
+    )
+    .unwrap_or_else(|e| {
+        panic!("{}", e);
+    });
 
     let start_time = Instant::now();
     // Display the image
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        window.update_with_buffer(&buffer, width, height).unwrap();
-        if (Instant::now() - start_time).as_secs_f32() > 1.0 {
+        window
+            .update_with_buffer(&buffer, new_width, new_height)
+            .unwrap();
+        if (Instant::now() - start_time).as_secs_f32() > 4.0 {
             break;
         }
     }
