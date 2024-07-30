@@ -12,21 +12,19 @@ use crate::plte::{self, parse_palette, Palette};
 pub type Pixel = (u8, u8, u8, u8);
 pub type Image = Vec<Vec<Pixel>>;
 
+pub const TRNS: &str = "tRNS";
+
 pub struct Png<'a> {
     pub ihdr: IhdrChunk,
     pub data: Vec<u8>,
     pub other_chunks: AncillaryChunks<'a>,
 }
 
-fn take_chunk<'a, 'b, 'c>(
-    chunks: &'c mut Vec<RawChunk<'a>>,
-    chunk_type: &'b str,
-) -> Option<RawChunk<'a>> {
-    if let Some(i) = chunks.iter().position(|elem| elem.chunk_type == chunk_type) {
-        Some(chunks.remove(i))
-    } else {
-        None
-    }
+fn take_chunk<'a>(chunks: &mut Vec<RawChunk<'a>>, chunk_type: &str) -> Option<RawChunk<'a>> {
+    chunks
+        .iter()
+        .position(|elem| elem.chunk_type == chunk_type)
+        .map(|i| chunks.remove(i))
 }
 
 fn take_palette_chunk(chunks: &mut Vec<RawChunk>) -> Option<Palette> {
