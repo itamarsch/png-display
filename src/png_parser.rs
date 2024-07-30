@@ -18,16 +18,21 @@ pub struct Png<'a> {
     pub other_chunks: AncillaryChunks<'a>,
 }
 
-fn take_palette_chunk(chunks: &mut Vec<RawChunk>) -> Option<Palette> {
-    if let Some(i) = chunks.iter().position(|elem| elem.chunk_type == plte::PLTE) {
-        let plte = chunks.remove(i);
-        let trns = if let Some(i) = chunks.iter().position(|elem| elem.chunk_type == plte::TRNS) {
-            let trns = chunks.remove(i);
-            Some(trns.data)
-        } else {
-            None
-        };
+fn take_chunk<'a, 'b, 'c>(
+    chunks: &'c mut Vec<RawChunk<'a>>,
+    chunk_type: &'b str,
+) -> Option<RawChunk<'a>> {
+    if let Some(i) = chunks.iter().position(|elem| elem.chunk_type == chunk_type) {
+        Some(chunks.remove(i))
+    } else {
+        None
+    }
+}
 
+fn take_palette_chunk(chunks: &mut Vec<RawChunk>) -> Option<Palette> {
+    let plte = take_chunk(chunks, plte::PLTE);
+    if let Some(plte) = plte {
+        let trns = take_chunk(chunks, plte::TRNS).map(|c| c.data);
         let (_, palette) = parse_palette(plte.data, trns).unwrap();
         Some(palette)
     } else {
@@ -72,9 +77,16 @@ impl<'a> Png<'a> {
         let (input, mut chunks) = parse_chunks(input)?;
 
         let palette = take_palette_chunk(&mut chunks);
+        let trns = if palette.is_some() {
+            None
+        } else {
+            take_chunk(&mut chunks, plte::TRNS)
+        }
+        .map(|c| c.data);
+        println!("{:?}", trns);
 
         let ihdr = chunks.remove(0);
-        let (_, ihdr) = parse_ihdr(ihdr.data, palette)?;
+        let (_, ihdr) = parse_ihdr(ihdr.data, palette, trns)?;
         println!("{:?}", ihdr);
 
         let data = take_idta_chunks(&mut chunks);

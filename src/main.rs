@@ -1,5 +1,6 @@
 use anyhow::Result;
 use draw_image::display_image;
+use plte::TRNS;
 use std::fs::File;
 use std::io::Read;
 use std::time::Duration;

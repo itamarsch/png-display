@@ -37,7 +37,7 @@ pub enum AncillaryChunk<'a> {
 }
 
 impl<'a> AncillaryChunk<'a> {
-    fn chunk_type(&self) -> &'a str {
+    pub fn chunk_type(&self) -> &'a str {
         match &self {
             AncillaryChunk::pHYs(_) => PhysicalUnits::CHUNK_TYPE,
             AncillaryChunk::bKGD(_) => Background::CHUNK_TYPE,

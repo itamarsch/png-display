@@ -57,7 +57,12 @@ impl InterlaceMethod {
     }
 }
 
-pub fn parse_ihdr(input: &[u8], plte: Option<Palette>) -> IResult<&[u8], IhdrChunk> {
+pub fn parse_ihdr<'a>(
+    input: &'a [u8],
+
+    plte: Option<Palette>,
+    trns_content: Option<&'a [u8]>,
+) -> IResult<&'a [u8], IhdrChunk> {
     let (input, width) = be_u32(input)?;
     let (input, height) = be_u32(input)?;
     let (input, bit_depth) = u8(input)?;
@@ -66,7 +71,7 @@ pub fn parse_ihdr(input: &[u8], plte: Option<Palette>) -> IResult<&[u8], IhdrChu
     let (input, filter_method) = u8(input)?;
     let (input, interlace_method) = u8(input)?;
 
-    let color_type = ColorType::from_u8(color_type_byte, plte).unwrap();
+    let color_type = ColorType::from_u8(color_type_byte, bit_depth, plte, trns_content).unwrap();
     let interlace_method = InterlaceMethod::from_u8(interlace_method).unwrap();
 
     let compression_method = CompressionMethod::from_u8(compression_method).unwrap();

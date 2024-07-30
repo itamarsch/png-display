@@ -33,11 +33,11 @@ impl Background {
         };
 
         let color = match color_type {
-            ColorType::Grayscale | ColorType::GrayscaleAlpha => {
+            ColorType::Grayscale { .. } | ColorType::GrayscaleAlpha => {
                 let (_, grayscale) = read_value().unwrap();
                 (grayscale, grayscale, grayscale)
             }
-            ColorType::Rgb | ColorType::Rgba => {
+            ColorType::Rgb { .. } | ColorType::Rgba => {
                 run_n!(3, read_value().unwrap().1)
             }
             ColorType::Palette(r) => {

@@ -8,8 +8,8 @@ use crate::{
 
 #[derive(Debug)]
 pub enum ColorType {
-    Grayscale,
-    Rgb,
+    Grayscale { transparent: Option<u8> },
+    Rgb { transparent: Option<(u8, u8, u8)> },
     Palette(Palette),
     GrayscaleAlpha,
     Rgba,
@@ -21,18 +21,43 @@ pub fn map_pixel_value(bit_depth: u8, value: u8) -> u8 {
 impl ColorType {
     pub fn valid_bit_depths(&self) -> Vec<u8> {
         match self {
-            ColorType::Grayscale => vec![1, 2, 4, 8, 16],
-            ColorType::Rgb => vec![8, 16],
+            ColorType::Grayscale { .. } => vec![1, 2, 4, 8, 16],
+            ColorType::Rgb { .. } => vec![8, 16],
             ColorType::Palette(_) => vec![1, 2, 4, 8],
             ColorType::GrayscaleAlpha => vec![8, 16],
             ColorType::Rgba => vec![8, 16],
         }
     }
 
-    pub fn from_u8(value: u8, plte: Option<Palette>) -> Option<ColorType> {
+    pub fn from_u8(
+        value: u8,
+        bit_depth: u8,
+        plte: Option<Palette>,
+        trns_content: Option<&[u8]>,
+    ) -> Option<ColorType> {
+        let read_trns_value = |buf: &[u8]| {
+            let v = u16::from_be_bytes(buf.try_into().unwrap());
+            if bit_depth == 8 {
+                map_pixel_value(bit_depth, v as u8)
+            } else {
+                (v >> 8) as u8
+            }
+        };
         match value {
-            0 => Some(ColorType::Grayscale),
-            2 => Some(ColorType::Rgb),
+            0 => {
+                let transparent =
+                    trns_content.map(|trns_content| read_trns_value(&trns_content[..2]));
+                Some(ColorType::Grayscale { transparent })
+            }
+            2 => {
+                let pixel = trns_content.map(|trns_content| {
+                    let r = read_trns_value(&trns_content[..2]);
+                    let g = read_trns_value(&trns_content[2..4]);
+                    let b = read_trns_value(&trns_content[4..6]);
+                    (r, g, b)
+                });
+                Some(ColorType::Rgb { transparent: pixel })
+            }
             3 => {
                 let plte = plte?;
                 Some(ColorType::Palette(plte))
@@ -44,8 +69,8 @@ impl ColorType {
     }
     pub fn values_per_pixel(&self) -> u8 {
         match &self {
-            ColorType::Grayscale => 1,
-            ColorType::Rgb => 3,
+            ColorType::Grayscale { .. } => 1,
+            ColorType::Rgb { .. } => 3,
             ColorType::Palette(_) => 1,
             ColorType::GrayscaleAlpha => 2,
             ColorType::Rgba => 4,
@@ -74,7 +99,7 @@ impl ColorType {
         };
 
         let pixel = match &self {
-            ColorType::Grayscale => {
+            ColorType::Grayscale { transparent } => {
                 let grayscale = if bit_depth <= 8 {
                     read_and_map_u8(scanline_reader)?
                 } else if bit_depth == 16 {
@@ -82,18 +107,42 @@ impl ColorType {
                 } else {
                     unreachable!("Invalid bitdepth")
                 };
-                (grayscale, grayscale, grayscale, 255)
+
+                (
+                    grayscale,
+                    grayscale,
+                    grayscale,
+                    if let Some(transparent) = transparent {
+                        if *transparent == grayscale {
+                            0
+                        } else {
+                            255
+                        }
+                    } else {
+                        255
+                    },
+                )
             }
-            ColorType::Rgb => {
-                let (r, g, b) = if bit_depth == 8 {
+            ColorType::Rgb { transparent } => {
+                let pixel = if bit_depth == 8 {
                     run_n!(3, scanline_reader.read_u8(8)?)
                 } else if bit_depth == 16 {
                     run_n!(3, read_and_map_u16(scanline_reader)?)
                 } else {
                     unreachable!("Invalid bitdepth")
                 };
+                let alpha = if let Some(transparent) = transparent {
+                    if *transparent == pixel {
+                        0
+                    } else {
+                        255
+                    }
+                } else {
+                    255
+                };
 
-                (r, g, b, 255)
+                let (r, g, b) = pixel;
+                (r, g, b, alpha)
             }
             ColorType::Palette(Palette {
                 entries: PaletteEntries::RGBA(values),
