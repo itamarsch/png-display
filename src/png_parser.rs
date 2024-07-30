@@ -1,4 +1,4 @@
-use crate::ancillary_chunks::{parse_ancillary_chunks, AncillaryChunk};
+use crate::ancillary_chunks::{parse_ancillary_chunks, AncillaryChunks};
 use crate::chunk::RawChunk;
 use crate::filter_apply;
 use crate::ihdr::{self, IhdrChunk};
@@ -15,7 +15,7 @@ pub type Image = Vec<Vec<Pixel>>;
 pub struct Png<'a> {
     pub ihdr: IhdrChunk,
     pub data: Vec<u8>,
-    pub other_chunks: Vec<AncillaryChunk<'a>>,
+    pub other_chunks: AncillaryChunks<'a>,
 }
 
 fn take_palette_chunk(chunks: &mut Vec<RawChunk>) -> Option<Palette> {
@@ -84,13 +84,13 @@ impl<'a> Png<'a> {
         assert_eq!(iend.chunk_type, IEND);
         assert!(iend.data.is_empty());
 
-        let non_requied_chunks = parse_ancillary_chunks(chunks);
+        let non_requied_chunks = parse_ancillary_chunks(chunks, &ihdr);
         Ok((
             input,
             Self {
                 ihdr,
                 data,
-                other_chunks: non_requied_chunks,
+                other_chunks: AncillaryChunks(non_requied_chunks),
             },
         ))
     }
@@ -103,7 +103,7 @@ impl<'a> Png<'a> {
     }
 
     pub fn print_ancillary(&self) {
-        for chunk in &self.other_chunks {
+        for chunk in &self.other_chunks.0 {
             chunk.print();
             println!();
         }

@@ -12,6 +12,7 @@ pub mod filter_apply;
 pub mod ihdr;
 pub mod plte;
 pub mod png_parser;
+pub mod run_n;
 
 fn main() -> Result<()> {
     let mut file = File::open(std::env::args().nth(1).unwrap())?;
@@ -20,13 +21,19 @@ fn main() -> Result<()> {
 
     let (_, png) = png_parser::Png::new(&buf).unwrap();
 
-    let pixels = png.get_pixels()?;
-    png.print_ancillary();
+    println!("{:?}", png.other_chunks.get_background());
+    if png.other_chunks.get_background().is_some() {
+        panic!("Background")
+    }
 
-    display_image(
-        pixels,
-        500.0 / png.ihdr.width as f32,
-        Some(Duration::from_secs_f32(0.5)),
-    );
+    // let pixels = png.get_pixels()?;
+    // png.print_ancillary();
+
+    // display_image(
+    //     pixels,
+    //     500.0 / png.ihdr.width as f32,
+    //     Some(Duration::from_secs_f32(10.0)),
+    //     None,
+    // );
     Ok(())
 }

@@ -13,6 +13,7 @@ pub fn display_image(
     image_data: Vec<Vec<(u8, u8, u8, u8)>>,
     scale: f32,
     timeout: Option<Duration>,
+    background: Option<(u8, u8, u8)>,
 ) {
     let height = image_data.len();
     let width = image_data[0].len();
@@ -37,13 +38,19 @@ pub fn display_image(
             let is_grid = ((new_x / grid_size) % 2 == 0 && (new_y / grid_size) % 2 == 0)
                 || ((new_x / grid_size) % 2 == 1 && (new_y / grid_size) % 2 == 1);
 
-            let grid_color = if is_grid { 0xCCCCCC } else { 0xFFFFFF };
+            let background = if let Some((r, g, b)) = background {
+                rgb_to_hex(r as u32, g as u32, b as u32)
+            } else if is_grid {
+                0xCCCCCC
+            } else {
+                0xFFFFFF
+            };
 
             // Pack RGBA into a single u32 value, considering transparency
             let pixel = if a < 255 {
-                let bg_r = (grid_color >> 16) & 0xFF;
-                let bg_g = (grid_color >> 8) & 0xFF;
-                let bg_b = grid_color & 0xFF;
+                let bg_r = (background >> 16) & 0xFF;
+                let bg_g = (background >> 8) & 0xFF;
+                let bg_b = background & 0xFF;
 
                 let fg_r = r as u32;
                 let fg_g = g as u32;
