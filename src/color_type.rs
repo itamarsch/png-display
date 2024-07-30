@@ -14,7 +14,7 @@ pub enum ColorType {
     GrayscaleAlpha,
     Rgba,
 }
-fn map_pixel_value(bit_depth: u8, value: u8) -> u8 {
+pub fn map_pixel_value(bit_depth: u8, value: u8) -> u8 {
     ((value as f32 / (2.0f32.powf(bit_depth as f32) - 1.0)) * 255.0) as u8
 }
 
@@ -57,12 +57,28 @@ impl ColorType {
         bit_depth: u8,
         scanline_reader: &mut BitReader,
     ) -> anyhow::Result<Pixel> {
+        let read_and_map_u8 = |scanline: &mut BitReader| -> anyhow::Result<u8> {
+            let v = scanline.read_u8(bit_depth)?;
+
+            let v = if bit_depth != 8 {
+                map_pixel_value(bit_depth, v)
+            } else {
+                v
+            };
+            Ok(v)
+        };
+
+        let read_and_map_u16 = |scanline: &mut BitReader| -> anyhow::Result<u8> {
+            let v = (scanline.read_u16(bit_depth)? >> 8) as u8;
+            Ok(v)
+        };
+
         let pixel = match &self {
             ColorType::Grayscale => {
                 let grayscale = if bit_depth <= 8 {
-                    read_and_map_u8(bit_depth, scanline_reader)?
+                    read_and_map_u8(scanline_reader)?
                 } else if bit_depth == 16 {
-                    read_and_map_u16(bit_depth, scanline_reader)?
+                    read_and_map_u16(scanline_reader)?
                 } else {
                     unreachable!("Invalid bitdepth")
                 };
@@ -72,7 +88,7 @@ impl ColorType {
                 let (r, g, b) = if bit_depth == 8 {
                     run_n!(3, scanline_reader.read_u8(8)?)
                 } else if bit_depth == 16 {
-                    run_n!(3, read_and_map_u16(bit_depth, scanline_reader)?)
+                    run_n!(3, read_and_map_u16(scanline_reader)?)
                 } else {
                     unreachable!("Invalid bitdepth")
                 };
@@ -105,7 +121,7 @@ impl ColorType {
                 let (gray_scale, alpha) = if bit_depth == 8 {
                     run_n!(2, scanline_reader.read_u8(8)?)
                 } else if bit_depth == 16 {
-                    run_n!(2, read_and_map_u16(bit_depth, scanline_reader)?)
+                    run_n!(2, read_and_map_u16(scanline_reader)?)
                 } else {
                     unreachable!("Invalid bitdepth")
                 };
@@ -116,7 +132,7 @@ impl ColorType {
                 if bit_depth == 8 {
                     run_n!(4, scanline_reader.read_u8(8)?)
                 } else if bit_depth == 16 {
-                    run_n!(4, read_and_map_u16(bit_depth, scanline_reader)?)
+                    run_n!(4, read_and_map_u16(scanline_reader)?)
                 } else {
                     unreachable!("Invalid bitdepth")
                 }
@@ -124,20 +140,4 @@ impl ColorType {
         };
         Ok(pixel)
     }
-}
-
-pub fn read_and_map_u8(bit_depth: u8, scanline: &mut BitReader) -> anyhow::Result<u8> {
-    let v = scanline.read_u8(bit_depth)?;
-
-    let v = if bit_depth != 8 {
-        map_pixel_value(bit_depth, v)
-    } else {
-        v
-    };
-    Ok(v)
-}
-
-pub fn read_and_map_u16(bit_depth: u8, scanline: &mut BitReader) -> anyhow::Result<u8> {
-    let v = (scanline.read_u16(bit_depth)? >> 8) as u8;
-    Ok(v)
 }

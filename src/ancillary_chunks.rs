@@ -11,11 +11,11 @@ pub mod text;
 pub struct AncillaryChunks<'a>(pub Vec<AncillaryChunk<'a>>);
 
 impl AncillaryChunks<'_> {
-    pub fn get_background(&self) -> Option<&Background> {
+    pub fn get_background(&self) -> Option<(u8, u8, u8)> {
         self.0
             .iter()
             .filter_map(|s| match s {
-                AncillaryChunk::bKGD(b) => Some(b),
+                AncillaryChunk::bKGD(b) => Some(b.color),
                 _ => None,
             })
             .next()

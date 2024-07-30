@@ -21,19 +21,16 @@ fn main() -> Result<()> {
 
     let (_, png) = png_parser::Png::new(&buf).unwrap();
 
-    println!("{:?}", png.other_chunks.get_background());
-    if png.other_chunks.get_background().is_some() {
-        panic!("Background")
-    }
+    let pixels = png.get_pixels()?;
+    png.print_ancillary();
 
-    // let pixels = png.get_pixels()?;
-    // png.print_ancillary();
+    let bg = png.other_chunks.get_background();
 
-    // display_image(
-    //     pixels,
-    //     500.0 / png.ihdr.width as f32,
-    //     Some(Duration::from_secs_f32(10.0)),
-    //     None,
-    // );
+    display_image(
+        pixels,
+        500.0 / png.ihdr.width as f32,
+        Some(Duration::from_secs_f32(10.0)),
+        bg,
+    );
     Ok(())
 }
