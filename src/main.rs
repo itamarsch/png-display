@@ -6,6 +6,7 @@ use std::time::Duration;
 
 pub mod ancillary_chunks;
 pub mod chunk;
+mod color_type;
 pub mod draw_image;
 pub mod filter_apply;
 pub mod ihdr;

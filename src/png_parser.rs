@@ -7,10 +7,10 @@ use nom::{bytes::complete::tag, IResult};
 
 use crate::chunk::parse_chunks;
 use crate::ihdr::parse_ihdr;
-use crate::plte::{self, parse_palette, Palette, PaletteEntries};
+use crate::plte::{self, parse_palette, Palette};
 
-type Pixel = (u8, u8, u8, u8);
-type Image = Vec<Vec<Pixel>>;
+pub type Pixel = (u8, u8, u8, u8);
+pub type Image = Vec<Vec<Pixel>>;
 
 pub struct Png<'a> {
     pub ihdr: IhdrChunk,
@@ -109,107 +109,6 @@ impl<'a> Png<'a> {
         }
     }
 
-    fn map_pixel_value(bit_depth: u8, value: u8) -> u8 {
-        ((value as f32 / (2.0f32.powf(bit_depth as f32) - 1.0)) * 255.0) as u8
-    }
-
-    fn read_pixel(&self, scanline_reader: &mut BitReader) -> anyhow::Result<Pixel> {
-        let read_and_map_u8 = |scanline: &mut BitReader| {
-            let v = scanline.read_u8(self.ihdr.bit_depth)?;
-            let v = Self::map_pixel_value(self.ihdr.bit_depth, v);
-            let res: anyhow::Result<u8> = Ok(v);
-            res
-        };
-        let read_and_map_u16 = |scanline: &mut BitReader| {
-            let v = (scanline.read_u16(self.ihdr.bit_depth)? >> 8) as u8;
-            let res: anyhow::Result<u8> = Ok(v);
-            res
-        };
-
-        let pixel = match &self.ihdr.color_type {
-            ihdr::ColorType::Grayscale => {
-                let grayscale = if self.ihdr.bit_depth <= 8 {
-                    read_and_map_u8(scanline_reader)?
-                } else if self.ihdr.bit_depth == 16 {
-                    read_and_map_u16(scanline_reader)?
-                } else {
-                    unreachable!("Invalid bitdepth")
-                };
-                (grayscale, grayscale, grayscale, 255)
-            }
-            ihdr::ColorType::Rgb => {
-                if self.ihdr.bit_depth == 8 {
-                    let r = scanline_reader.read_u8(8)?;
-                    let g = scanline_reader.read_u8(8)?;
-                    let b = scanline_reader.read_u8(8)?;
-                    (r, g, b, 255)
-                } else if self.ihdr.bit_depth == 16 {
-                    let r = read_and_map_u16(scanline_reader)?;
-                    let g = read_and_map_u16(scanline_reader)?;
-                    let b = read_and_map_u16(scanline_reader)?;
-                    (r, g, b, 255)
-                } else {
-                    unreachable!("Invalid bitdepth")
-                }
-            }
-            ihdr::ColorType::Palette(Palette {
-                entries: PaletteEntries::RGBA(values),
-            }) => {
-                if self.ihdr.bit_depth <= 8 {
-                    let index = scanline_reader.read_u8(self.ihdr.bit_depth)?;
-                    values[index as usize]
-                } else {
-                    unreachable!("Invalid bitdepth")
-                }
-            }
-
-            ihdr::ColorType::Palette(Palette {
-                entries: PaletteEntries::RGB(values),
-            }) => {
-                if self.ihdr.bit_depth <= 8 {
-                    let index = scanline_reader.read_u8(self.ihdr.bit_depth)?;
-                    let (r, g, b) = values[index as usize];
-                    (r, g, b, 255)
-                } else {
-                    unreachable!("Invalid bitdepth")
-                }
-            }
-            ihdr::ColorType::GrayscaleAlpha => {
-                let (gray_scale, alpha) = if self.ihdr.bit_depth == 8 {
-                    let gray_scale = scanline_reader.read_u8(8)?;
-                    let alpha = scanline_reader.read_u8(8)?;
-                    (gray_scale, alpha)
-                } else if self.ihdr.bit_depth == 16 {
-                    let gray_scale = read_and_map_u16(scanline_reader)?;
-                    let alpha = read_and_map_u16(scanline_reader)?;
-                    (gray_scale, alpha)
-                } else {
-                    unreachable!("Invalid bitdepth")
-                };
-
-                (gray_scale, gray_scale, gray_scale, alpha)
-            }
-            ihdr::ColorType::Rgba => {
-                if self.ihdr.bit_depth == 8 {
-                    let r = scanline_reader.read_u8(8)?;
-                    let g = scanline_reader.read_u8(8)?;
-                    let b = scanline_reader.read_u8(8)?;
-                    let a = scanline_reader.read_u8(8)?;
-                    (r, g, b, a)
-                } else if self.ihdr.bit_depth == 16 {
-                    let r = read_and_map_u16(scanline_reader)?;
-                    let g = read_and_map_u16(scanline_reader)?;
-                    let b = read_and_map_u16(scanline_reader)?;
-                    let a = read_and_map_u16(scanline_reader)?;
-                    (r, g, b, a)
-                } else {
-                    panic!("Invalid bit_depth")
-                }
-            }
-        };
-        Ok(pixel)
-    }
-
     fn bpp(&self) -> usize {
         let values_per_pixel = self.ihdr.color_type.values_per_pixel();
         (self.ihdr.bit_depth.div_ceil(8) * values_per_pixel) as usize
@@ -243,7 +142,10 @@ impl<'a> Png<'a> {
             let mut scanline_reader = BitReader::new(&decoded);
 
             for j in 0..self.ihdr.width {
-                pixels[i as usize][j as usize] = self.read_pixel(&mut scanline_reader)?;
+                pixels[i as usize][j as usize] = self
+                    .ihdr
+                    .color_type
+                    .read_pixel(self.ihdr.bit_depth, &mut scanline_reader)?;
             }
 
             prev_scanline = Some(decoded.clone());
@@ -288,7 +190,10 @@ impl<'a> Png<'a> {
 
                 let mut scanline_reader = BitReader::new(&decoded);
                 for j in (start_x..self.ihdr.width as usize).step_by(step_x) {
-                    pixels[i][j] = self.read_pixel(&mut scanline_reader)?;
+                    pixels[i][j] = self
+                        .ihdr
+                        .color_type
+                        .read_pixel(self.ihdr.bit_depth, &mut scanline_reader)?;
                 }
                 prev_scanline = Some(decoded.clone());
             }

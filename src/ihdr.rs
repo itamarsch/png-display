@@ -1,6 +1,7 @@
 use nom::number::complete::{be_u32, u8};
 use nom::IResult;
 
+use crate::color_type::ColorType;
 use crate::plte::Palette;
 
 #[derive(Debug)]
@@ -12,15 +13,6 @@ pub struct IhdrChunk {
     pub compression_method: CompressionMethod,
     pub filter_method: FilterMethod,
     pub interlace_method: InterlaceMethod,
-}
-
-#[derive(Debug)]
-pub enum ColorType {
-    Grayscale,
-    Rgb,
-    Palette(Palette),
-    GrayscaleAlpha,
-    Rgba,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -61,41 +53,6 @@ impl InterlaceMethod {
             0 => Some(Self::None),
             1 => Some(Self::Adam7),
             _ => None,
-        }
-    }
-}
-
-impl ColorType {
-    fn valid_bit_depths(&self) -> Vec<u8> {
-        match self {
-            ColorType::Grayscale => vec![1, 2, 4, 8, 16],
-            ColorType::Rgb => vec![8, 16],
-            ColorType::Palette(_) => vec![1, 2, 4, 8],
-            ColorType::GrayscaleAlpha => vec![8, 16],
-            ColorType::Rgba => vec![8, 16],
-        }
-    }
-
-    fn from_u8(value: u8, plte: Option<Palette>) -> Option<ColorType> {
-        match value {
-            0 => Some(ColorType::Grayscale),
-            2 => Some(ColorType::Rgb),
-            3 => {
-                let plte = plte?;
-                Some(ColorType::Palette(plte))
-            }
-            4 => Some(ColorType::GrayscaleAlpha),
-            6 => Some(ColorType::Rgba),
-            _ => None,
-        }
-    }
-    pub fn values_per_pixel(&self) -> u8 {
-        match &self {
-            ColorType::Grayscale => 1,
-            ColorType::Rgb => 3,
-            ColorType::Palette(_) => 1,
-            ColorType::GrayscaleAlpha => 2,
-            ColorType::Rgba => 4,
         }
     }
 }
