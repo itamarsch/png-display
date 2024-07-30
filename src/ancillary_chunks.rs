@@ -3,9 +3,10 @@ use crate::{chunk::RawChunk, ihdr::IhdrChunk};
 use color_print::cprintln;
 use text::{CompressedTextChunk, InternationalTextChunk, TextChunk};
 
-use self::{background::Background, time::Time};
+use self::{background::Background, phys::PhysicalUnits, time::Time};
 
 pub mod background;
+pub mod phys;
 pub mod text;
 pub mod time;
 
@@ -31,12 +32,14 @@ pub enum AncillaryChunk<'a> {
     tEXt(TextChunk<'a>),
     zTXt(CompressedTextChunk<'a>),
     iTXt(InternationalTextChunk<'a>),
+    pHYs(PhysicalUnits),
     Unknown(RawChunk<'a>),
 }
 
 impl<'a> AncillaryChunk<'a> {
     fn chunk_type(&self) -> &'a str {
         match &self {
+            AncillaryChunk::pHYs(_) => PhysicalUnits::CHUNK_TYPE,
             AncillaryChunk::bKGD(_) => Background::CHUNK_TYPE,
             AncillaryChunk::tEXt(_) => TextChunk::CHUNK_TYPE,
             AncillaryChunk::zTXt(_) => CompressedTextChunk::CHUNK_TYPE,
@@ -66,7 +69,12 @@ pub fn parse_ancillary_chunks<'a>(
                 &ihdr.color_type,
                 ihdr.bit_depth,
             )),
-            Time::CHUNK_TYPE => AncillaryChunk::tIME(Time::parse(&chunk.data).unwrap().1),
+            Time::CHUNK_TYPE => AncillaryChunk::tIME(Time::parse(chunk.data).unwrap().1),
+            PhysicalUnits::CHUNK_TYPE => AncillaryChunk::pHYs(
+                PhysicalUnits::parse(chunk.data, ihdr.width, ihdr.height)
+                    .unwrap()
+                    .1,
+            ),
 
             _ => AncillaryChunk::Unknown(chunk),
         })
@@ -89,6 +97,9 @@ impl<'a> AncillaryChunk<'a> {
                 cprintln!("<green>{:?}</green>", b.color);
             }
             AncillaryChunk::tIME(chunk) => {
+                cprintln!("<green>{}</green>", chunk);
+            }
+            AncillaryChunk::pHYs(chunk) => {
                 cprintln!("<green>{}</green>", chunk);
             }
             AncillaryChunk::Unknown(_) => {
