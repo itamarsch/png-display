@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use minifb::{Key, Window, WindowOptions};
 fn rgb_to_hex(r: u32, g: u32, b: u32) -> u32 {
@@ -9,7 +9,11 @@ fn lerp(a: u32, b: u32, t: f32) -> u32 {
     (a as f32 * t + b as f32 * (1.0 - t)) as u32
 }
 
-pub fn display_image(image_data: Vec<Vec<(u8, u8, u8, u8)>>, scale: f32) {
+pub fn display_image(
+    image_data: Vec<Vec<(u8, u8, u8, u8)>>,
+    scale: f32,
+    timeout: Option<Duration>,
+) {
     let height = image_data.len();
     let width = image_data[0].len();
     let grid_size = 10;
@@ -76,8 +80,10 @@ pub fn display_image(image_data: Vec<Vec<(u8, u8, u8, u8)>>, scale: f32) {
         window
             .update_with_buffer(&buffer, new_width, new_height)
             .unwrap();
-        if (Instant::now() - start_time).as_secs_f32() > 4.0 {
-            break;
+        if let Some(timeout) = timeout {
+            if (Instant::now() - start_time) > timeout {
+                break;
+            }
         }
     }
 }

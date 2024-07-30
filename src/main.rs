@@ -2,14 +2,15 @@ use anyhow::Result;
 use draw_image::display_image;
 use std::fs::File;
 use std::io::Read;
+use std::time::Duration;
 
+pub mod ancillary_chunks;
 pub mod chunk;
 pub mod draw_image;
 pub mod filter_apply;
 pub mod ihdr;
 pub mod plte;
 pub mod png_parser;
-pub mod text;
 
 fn main() -> Result<()> {
     let mut file = File::open(std::env::args().nth(1).unwrap())?;
@@ -18,21 +19,12 @@ fn main() -> Result<()> {
 
     let (_, png) = png_parser::Png::new(&buf).unwrap();
 
-    for c in &png.other_chunks {
-        match c {
-            png_parser::Chunk::tEXt(t) => println!("Text\n{}: {}", t.keyword, t.text),
-            png_parser::Chunk::zTXt(z) => println!("CompressedText\n{}: {}", z.keyword, z.text),
-            png_parser::Chunk::iTXt(i) => println!(
-                "InternationalText\n{} {} {}: {}",
-                i.keyword, i.language_tag, i.translated_keyword, i.text
-            ),
-            png_parser::Chunk::Unknown(c) => println!("Unknown\n{}", c.chunk_type),
-        }
-        println!("---------------")
-    }
-
     let pixels = png.get_pixels()?;
 
-    display_image(pixels, 0.5);
+    display_image(
+        pixels,
+        500.0 / png.ihdr.width as f32,
+        Some(Duration::from_secs_f32(0.5)),
+    );
     Ok(())
 }

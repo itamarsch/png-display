@@ -8,7 +8,7 @@ use crate::chunk::parse_chunks;
 use crate::ihdr::parse_ihdr;
 use crate::plte::{self, parse_palette, Palette, PaletteEntries};
 
-use crate::text::{CompressedTextChunk, InternationalTextChunk, TextChunk};
+use crate::ancillary_chunks::text::{CompressedTextChunk, InternationalTextChunk, TextChunk};
 
 type Pixel = (u8, u8, u8, u8);
 type Image = Vec<Vec<Pixel>>;
