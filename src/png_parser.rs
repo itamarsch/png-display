@@ -128,16 +128,28 @@ impl<'a> Png<'a> {
     }
 
     fn read_pixel(&self, scanline_reader: &mut BitReader) -> anyhow::Result<Pixel> {
+        let read_and_map_u8 = |scanline: &mut BitReader| {
+            let v = scanline.read_u8(self.ihdr.bit_depth)?;
+            let v = Self::map_pixel_value(self.ihdr.bit_depth, v);
+            let res: anyhow::Result<u8> = Ok(v);
+            res
+        };
+        let read_and_map_u16 = |scanline: &mut BitReader| {
+            let v = (scanline.read_u16(self.ihdr.bit_depth)? >> 8) as u8;
+            let res: anyhow::Result<u8> = Ok(v);
+            res
+        };
+
         let pixel = match &self.ihdr.color_type {
             ihdr::ColorType::Grayscale => {
-                if self.ihdr.bit_depth <= 8 {
-                    let gray_scale = scanline_reader.read_u8(self.ihdr.bit_depth)?;
-                    let gray_scale = Self::map_pixel_value(self.ihdr.bit_depth, gray_scale);
-
-                    (gray_scale, gray_scale, gray_scale, 255)
+                let grayscale = if self.ihdr.bit_depth <= 8 {
+                    read_and_map_u8(scanline_reader)?
+                } else if self.ihdr.bit_depth == 16 {
+                    read_and_map_u16(scanline_reader)?
                 } else {
-                    todo!("Unimplemented bitdepth: {:?}", self.ihdr.bit_depth);
-                }
+                    unreachable!("Invalid bitdepth")
+                };
+                (grayscale, grayscale, grayscale, 255)
             }
             ihdr::ColorType::Rgb => {
                 if self.ihdr.bit_depth == 8 {
@@ -146,33 +158,48 @@ impl<'a> Png<'a> {
                     let b = scanline_reader.read_u8(8)?;
                     (r, g, b, 255)
                 } else if self.ihdr.bit_depth == 16 {
-                    let r = (scanline_reader.read_u16(16)? >> 8) as u8;
-                    let g = (scanline_reader.read_u16(16)? >> 8) as u8;
-                    let b = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    let r = read_and_map_u16(scanline_reader)?;
+                    let g = read_and_map_u16(scanline_reader)?;
+                    let b = read_and_map_u16(scanline_reader)?;
                     (r, g, b, 255)
                 } else {
-                    todo!("Implement bitdepth: {}", self.ihdr.bit_depth);
+                    unreachable!("Invalid bitdepth")
                 }
             }
             ihdr::ColorType::Palette(Palette {
                 entries: PaletteEntries::RGBA(values),
             }) => {
-                let index = scanline_reader.read_u8(self.ihdr.bit_depth)?;
-                values[index as usize]
+                if self.ihdr.bit_depth <= 8 {
+                    let index = scanline_reader.read_u8(self.ihdr.bit_depth)?;
+                    values[index as usize]
+                } else {
+                    unreachable!("Invalid bitdepth")
+                }
             }
 
             ihdr::ColorType::Palette(Palette {
                 entries: PaletteEntries::RGB(values),
             }) => {
-                let index = scanline_reader.read_u8(self.ihdr.bit_depth)?;
-                let (r, g, b) = values[index as usize];
-                (r, g, b, 255)
+                if self.ihdr.bit_depth <= 8 {
+                    let index = scanline_reader.read_u8(self.ihdr.bit_depth)?;
+                    let (r, g, b) = values[index as usize];
+                    (r, g, b, 255)
+                } else {
+                    unreachable!("Invalid bitdepth")
+                }
             }
             ihdr::ColorType::GrayscaleAlpha => {
-                let gray_scale = scanline_reader.read_u8(self.ihdr.bit_depth)?;
-                let alpha = scanline_reader.read_u8(self.ihdr.bit_depth)?;
-                let gray_scale = Self::map_pixel_value(self.ihdr.bit_depth, gray_scale);
-                let alpha = Self::map_pixel_value(self.ihdr.bit_depth, alpha);
+                let (gray_scale, alpha) = if self.ihdr.bit_depth == 8 {
+                    let gray_scale = scanline_reader.read_u8(8)?;
+                    let alpha = scanline_reader.read_u8(8)?;
+                    (gray_scale, alpha)
+                } else if self.ihdr.bit_depth == 16 {
+                    let gray_scale = read_and_map_u16(scanline_reader)?;
+                    let alpha = read_and_map_u16(scanline_reader)?;
+                    (gray_scale, alpha)
+                } else {
+                    unreachable!("Invalid bitdepth")
+                };
 
                 (gray_scale, gray_scale, gray_scale, alpha)
             }
@@ -184,13 +211,13 @@ impl<'a> Png<'a> {
                     let a = scanline_reader.read_u8(8)?;
                     (r, g, b, a)
                 } else if self.ihdr.bit_depth == 16 {
-                    let r = (scanline_reader.read_u16(16)? >> 8) as u8;
-                    let g = (scanline_reader.read_u16(16)? >> 8) as u8;
-                    let b = (scanline_reader.read_u16(16)? >> 8) as u8;
-                    let a = (scanline_reader.read_u16(16)? >> 8) as u8;
+                    let r = read_and_map_u16(scanline_reader)?;
+                    let g = read_and_map_u16(scanline_reader)?;
+                    let b = read_and_map_u16(scanline_reader)?;
+                    let a = read_and_map_u16(scanline_reader)?;
                     (r, g, b, a)
                 } else {
-                    todo!("Implement bitdepth: {}", self.ihdr.bit_depth);
+                    panic!("Invalid bit_depth")
                 }
             }
         };

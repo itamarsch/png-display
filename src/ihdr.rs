@@ -66,6 +66,16 @@ impl InterlaceMethod {
 }
 
 impl ColorType {
+    fn valid_bit_depths(&self) -> Vec<u8> {
+        match self {
+            ColorType::Grayscale => vec![1, 2, 4, 8, 16],
+            ColorType::Rgb => vec![8, 16],
+            ColorType::Palette(_) => vec![1, 2, 4, 8],
+            ColorType::GrayscaleAlpha => vec![8, 16],
+            ColorType::Rgba => vec![8, 16],
+        }
+    }
+
     fn from_u8(value: u8, plte: Option<Palette>) -> Option<ColorType> {
         match value {
             0 => Some(ColorType::Grayscale),
@@ -107,6 +117,8 @@ pub fn parse_ihdr(input: &[u8], plte: Option<Palette>) -> IResult<&[u8], IhdrChu
 
     let CompressionMethod::Zlib = compression_method;
     let FilterMethod::FiveFilter = filter_method;
+
+    assert!(color_type.valid_bit_depths().contains(&bit_depth));
 
     Ok((
         input,
