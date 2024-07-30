@@ -101,6 +101,7 @@ impl<'a> Png<'a> {
 
         let ihdr = chunks.remove(0);
         let (_, ihdr) = parse_ihdr(ihdr.data, palette)?;
+        println!("{:?}", ihdr);
 
         let data = take_idta_chunks(&mut chunks);
 
@@ -122,14 +123,20 @@ impl<'a> Png<'a> {
         }
     }
 
+    fn map_pixel_value(bit_depth: u8, value: u8) -> u8 {
+        ((value as f32 / (2.0f32.powf(bit_depth as f32) - 1.0)) * 255.0) as u8
+    }
+
     fn read_pixel(&self, scanline_reader: &mut BitReader) -> anyhow::Result<Pixel> {
         let pixel = match &self.ihdr.color_type {
             ihdr::ColorType::Grayscale => {
-                if self.ihdr.bit_depth == 8 {
+                if self.ihdr.bit_depth <= 8 {
                     let gray_scale = scanline_reader.read_u8(self.ihdr.bit_depth)?;
+                    let gray_scale = Self::map_pixel_value(self.ihdr.bit_depth, gray_scale);
+
                     (gray_scale, gray_scale, gray_scale, 255)
                 } else {
-                    todo!()
+                    todo!("Unimplemented bitdepth: {:?}", self.ihdr.bit_depth);
                 }
             }
             ihdr::ColorType::Rgb => {
@@ -161,7 +168,14 @@ impl<'a> Png<'a> {
                 let (r, g, b) = values[index as usize];
                 (r, g, b, 255)
             }
-            ihdr::ColorType::GrayscaleAlpha => todo!(),
+            ihdr::ColorType::GrayscaleAlpha => {
+                let gray_scale = scanline_reader.read_u8(self.ihdr.bit_depth)?;
+                let alpha = scanline_reader.read_u8(self.ihdr.bit_depth)?;
+                let gray_scale = Self::map_pixel_value(self.ihdr.bit_depth, gray_scale);
+                let alpha = Self::map_pixel_value(self.ihdr.bit_depth, alpha);
+
+                (gray_scale, gray_scale, gray_scale, alpha)
+            }
             ihdr::ColorType::Rgba => {
                 if self.ihdr.bit_depth == 8 {
                     let r = scanline_reader.read_u8(8)?;

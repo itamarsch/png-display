@@ -33,6 +33,6 @@ fn main() -> Result<()> {
 
     let pixels = png.get_pixels()?;
 
-    display_image(pixels);
+    display_image(pixels, 0.5);
     Ok(())
 }
