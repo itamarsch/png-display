@@ -1,3 +1,4 @@
+use crate::ancillary_chunks::{parse_ancillary_chunks, AncillaryChunk};
 use crate::chunk::RawChunk;
 use crate::filter_apply;
 use crate::ihdr::{self, IhdrChunk};
@@ -8,24 +9,13 @@ use crate::chunk::parse_chunks;
 use crate::ihdr::parse_ihdr;
 use crate::plte::{self, parse_palette, Palette, PaletteEntries};
 
-use crate::ancillary_chunks::text::{CompressedTextChunk, InternationalTextChunk, TextChunk};
-
 type Pixel = (u8, u8, u8, u8);
 type Image = Vec<Vec<Pixel>>;
-
-#[derive(Debug)]
-#[allow(non_camel_case_types)]
-pub enum Chunk<'a> {
-    tEXt(TextChunk),
-    zTXt(CompressedTextChunk<'a>),
-    iTXt(InternationalTextChunk<'a>),
-    Unknown(RawChunk<'a>),
-}
 
 pub struct Png<'a> {
     pub ihdr: IhdrChunk,
     pub data: Vec<u8>,
-    pub other_chunks: Vec<Chunk<'a>>,
+    pub other_chunks: Vec<AncillaryChunk<'a>>,
 }
 
 fn take_palette_chunk(chunks: &mut Vec<RawChunk>) -> Option<Palette> {
@@ -73,22 +63,6 @@ fn take_idta_chunks(chunks: &mut Vec<RawChunk>) -> Vec<u8> {
     inflate::inflate_bytes_zlib(&data).unwrap()
 }
 
-fn parse_non_required_chunks(chunks: Vec<RawChunk<'_>>) -> Vec<Chunk<'_>> {
-    chunks
-        .into_iter()
-        .map(|chunk| match chunk.chunk_type {
-            TextChunk::CHUNK_TYPE => Chunk::tEXt(TextChunk::parse(chunk.data).unwrap()),
-            CompressedTextChunk::CHUNK_TYPE => {
-                Chunk::zTXt(CompressedTextChunk::parse(chunk.data).unwrap().1)
-            }
-            InternationalTextChunk::CHUNK_TYPE => {
-                Chunk::iTXt(InternationalTextChunk::parse(chunk.data).unwrap().1)
-            }
-            _ => Chunk::Unknown(chunk),
-        })
-        .collect()
-}
-
 impl<'a> Png<'a> {
     pub fn new(input: &'a [u8]) -> IResult<&'a [u8], Self> {
         const MAGIC_NUMBER: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
@@ -105,7 +79,12 @@ impl<'a> Png<'a> {
 
         let data = take_idta_chunks(&mut chunks);
 
-        let non_requied_chunks = parse_non_required_chunks(chunks);
+        const IEND: &str = "IEND";
+        let iend = chunks.remove(chunks.len() - 1);
+        assert_eq!(iend.chunk_type, IEND);
+        assert!(iend.data.is_empty());
+
+        let non_requied_chunks = parse_ancillary_chunks(chunks);
         Ok((
             input,
             Self {
@@ -120,6 +99,13 @@ impl<'a> Png<'a> {
         match self.ihdr.interlace_method {
             ihdr::InterlaceMethod::Adam7 => self.get_pixels_adam7(),
             ihdr::InterlaceMethod::None => self.get_pixels_no_interlace(),
+        }
+    }
+
+    pub fn print_ancillary(&self) {
+        for chunk in &self.other_chunks {
+            chunk.print();
+            println!();
         }
     }
 

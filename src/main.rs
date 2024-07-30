@@ -20,6 +20,7 @@ fn main() -> Result<()> {
     let (_, png) = png_parser::Png::new(&buf).unwrap();
 
     let pixels = png.get_pixels()?;
+    png.print_ancillary();
 
     display_image(
         pixels,
