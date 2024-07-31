@@ -1,6 +1,8 @@
 use std::time::{Duration, Instant};
 
 use minifb::{Key, Window, WindowOptions};
+
+use crate::ancillary_chunks::gama::Gama;
 fn rgb_to_hex(r: u32, g: u32, b: u32) -> u32 {
     (r << 16) | (g << 8) | b
 }
@@ -8,12 +10,24 @@ fn rgb_to_hex(r: u32, g: u32, b: u32) -> u32 {
 fn lerp(a: u32, b: u32, t: f32) -> u32 {
     (a as f32 * t + b as f32 * (1.0 - t)) as u32
 }
+fn apply_gama(v: u8, gama: Option<Gama>) -> u8 {
+    if let Some(Gama(gama)) = gama {
+        let v = v as f32;
+        let v = v / 255.0;
+        let v = v.powf(1.0 / gama);
+        let v = v * 255.0;
+        v as u8
+    } else {
+        v
+    }
+}
 
 pub fn display_image(
     image_data: Vec<Vec<(u8, u8, u8, u8)>>,
     scale: f32,
     timeout: Option<Duration>,
     background: Option<(u8, u8, u8)>,
+    gama: Option<Gama>,
 ) {
     let height = image_data.len();
     let width = image_data[0].len();
@@ -33,6 +47,12 @@ pub fn display_image(
             let orig_y = (new_y as f32 / scale).floor() as usize;
 
             let (r, g, b, a) = image_data[orig_y][orig_x];
+            let (r, g, b, a) = (
+                apply_gama(r, gama),
+                apply_gama(g, gama),
+                apply_gama(b, gama),
+                a,
+            );
 
             // Determine if this pixel is part of the grid pattern
             let is_grid = ((new_x / grid_size) % 2 == 0 && (new_y / grid_size) % 2 == 0)

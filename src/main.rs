@@ -2,7 +2,6 @@ use anyhow::Result;
 use draw_image::display_image;
 use std::fs::File;
 use std::io::Read;
-use std::time::Duration;
 
 pub mod ancillary_chunks;
 pub mod chunk;
@@ -25,12 +24,8 @@ fn main() -> Result<()> {
     png.print_ancillary();
 
     let bg = png.other_chunks.get_background();
+    let gama = png.other_chunks.get_gama();
 
-    display_image(
-        pixels,
-        500.0 / png.ihdr.width as f32,
-        Some(Duration::from_secs_f32(10.0)),
-        bg,
-    );
+    display_image(pixels, 1.0, None, bg, gama);
     Ok(())
 }

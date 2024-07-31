@@ -214,7 +214,6 @@ impl<'a> Png<'a> {
                         .ihdr
                         .color_type
                         .read_pixel(self.ihdr.bit_depth, &mut scanline_reader)?;
-                    println!("{:?}, {}. {}", pixels[i][j], i, j);
                 }
                 prev_scanline = Some(decoded.clone());
             }

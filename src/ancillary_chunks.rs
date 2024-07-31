@@ -3,9 +3,10 @@ use crate::{chunk::RawChunk, ihdr::IhdrChunk};
 use color_print::cprintln;
 use text::{CompressedTextChunk, InternationalTextChunk, TextChunk};
 
-use self::{background::Background, phys::PhysicalUnits, time::Time};
+use self::{background::Background, gama::Gama, phys::PhysicalUnits, time::Time};
 
 pub mod background;
+pub mod gama;
 pub mod phys;
 pub mod text;
 pub mod time;
@@ -22,12 +23,23 @@ impl AncillaryChunks<'_> {
             })
             .next()
     }
+
+    pub fn get_gama(&self) -> Option<Gama> {
+        self.0
+            .iter()
+            .filter_map(|s| match s {
+                AncillaryChunk::gAMA(b) => Some(*b),
+                _ => None,
+            })
+            .next()
+    }
 }
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AncillaryChunk<'a> {
     tIME(Time),
+    gAMA(Gama),
     bKGD(Background),
     tEXt(TextChunk<'a>),
     zTXt(CompressedTextChunk<'a>),
@@ -45,6 +57,7 @@ impl<'a> AncillaryChunk<'a> {
             AncillaryChunk::zTXt(_) => CompressedTextChunk::CHUNK_TYPE,
             AncillaryChunk::iTXt(_) => InternationalTextChunk::CHUNK_TYPE,
             AncillaryChunk::tIME(_) => Time::CHUNK_TYPE,
+            AncillaryChunk::gAMA(_) => Gama::CHUNK_TYPE,
             AncillaryChunk::Unknown(c) => c.chunk_type,
         }
     }
@@ -75,6 +88,7 @@ pub fn parse_ancillary_chunks<'a>(
                     .unwrap()
                     .1,
             ),
+            Gama::CHUNK_TYPE => AncillaryChunk::gAMA(Gama::parse(chunk.data)),
 
             _ => AncillaryChunk::Unknown(chunk),
         })
@@ -84,6 +98,10 @@ impl<'a> AncillaryChunk<'a> {
     pub fn print(&self) {
         cprintln!("<cyan>Chunk Type: {}</cyan>", self.chunk_type());
         match self {
+            AncillaryChunk::gAMA(chunk) => {
+                cprintln!("<green>{}</green>", chunk);
+            }
+
             AncillaryChunk::tEXt(chunk) => {
                 cprintln!("<green>{}</green>", chunk);
             }
