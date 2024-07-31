@@ -65,9 +65,9 @@ impl<'a> CompressedTextChunk<'a> {
 
 #[derive(Debug)]
 pub struct InternationalTextChunk<'a> {
-    pub keyword: Cow<'a, str>,
-    pub language_tag: Cow<'a, str>,
-    pub translated_keyword: Cow<'a, str>,
+    pub keyword: &'a str,
+    pub language_tag: &'a str,
+    pub translated_keyword: &'a str,
     pub text: Cow<'a, str>,
 }
 
@@ -91,7 +91,7 @@ impl<'a> InternationalTextChunk<'a> {
         let (input, keyword) = take_until(&[0][..])(input)?;
         let (input, _) = u8(input)?;
 
-        let keyword = iso_8859_1_to_string(keyword);
+        let keyword = std::str::from_utf8(keyword).unwrap();
         let (input, compression_flags) = u8(input)?;
         let (input, compression_method) = u8(input)?;
 
@@ -100,17 +100,17 @@ impl<'a> InternationalTextChunk<'a> {
 
         let (input, language_tag) = take_until(&[0][..])(input)?;
         let (input, _) = u8(input)?;
-        let language_tag = iso_8859_1_to_string(language_tag);
+        let language_tag = std::str::from_utf8(language_tag).unwrap();
 
         let (input, translated) = take_until(&[0][..])(input)?;
         let (input, _) = u8(input)?;
-        let translated_keyword = iso_8859_1_to_string(translated);
+        let translated_keyword = std::str::from_utf8(translated).unwrap();
 
         let text = match compression_flag {
-            CompressionFlags::NoCompression => iso_8859_1_to_string(input),
-            CompressionFlags::Compression => Cow::Owned(iso_8859_1_to_owned_string(
-                inflate::inflate_bytes_zlib(input).unwrap(),
-            )),
+            CompressionFlags::NoCompression => Cow::Borrowed(std::str::from_utf8(input).unwrap()),
+            CompressionFlags::Compression => {
+                Cow::Owned(String::from_utf8(inflate::inflate_bytes_zlib(input).unwrap()).unwrap())
+            }
         };
 
         Ok((
