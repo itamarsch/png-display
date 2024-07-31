@@ -123,6 +123,10 @@ impl<'a> Png<'a> {
         let values_per_pixel = self.ihdr.color_type.values_per_pixel();
         (self.ihdr.bit_depth.div_ceil(8) * values_per_pixel) as usize
     }
+    fn bpp_float(&self) -> f32 {
+        let values_per_pixel = self.ihdr.color_type.values_per_pixel() as f32;
+        self.ihdr.bit_depth as f32 / 8.0 * values_per_pixel
+    }
 
     fn get_pixels_no_interlace(&self) -> anyhow::Result<Image> {
         let mut bitreader = BitReader::new(&self.data[..]);
@@ -182,9 +186,15 @@ impl<'a> Png<'a> {
         let mut prev_scanline = None;
 
         for ((start_x, start_y), (step_x, step_y)) in adam7_passes {
-            let scanline_len =
-                1 + ((self.ihdr.width as usize - start_x).div_ceil(step_x)) * self.bpp();
+            if (self.ihdr.width as usize) <= start_x || (self.ihdr.height as usize) <= start_y {
+                continue;
+            }
+            let scanline_len = 1.0
+                + (((self.ihdr.width as usize - start_x).div_ceil(step_x)) as f32
+                    * self.bpp_float())
+                .ceil();
 
+            let scanline_len = scanline_len as usize;
             let mut scanline = vec![0; scanline_len];
             let mut decoded = vec![0; scanline_len - 1];
             for i in (start_y..self.ihdr.height as usize).step_by(step_y) {
@@ -204,6 +214,7 @@ impl<'a> Png<'a> {
                         .ihdr
                         .color_type
                         .read_pixel(self.ihdr.bit_depth, &mut scanline_reader)?;
+                    println!("{:?}, {}. {}", pixels[i][j], i, j);
                 }
                 prev_scanline = Some(decoded.clone());
             }
