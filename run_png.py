@@ -15,17 +15,15 @@ def run_cargo_on_png_files(start_index=0):
         filepath = os.path.join(directory, filename)
         print(f"Processing file {index}: {filepath}")
         command = ["cargo", "run", "--", filepath]
-        process = subprocess.run(command, capture_output=True, text=True)
-
-        # Output all stdout
-        print(process.stdout)
+        process = subprocess.run(
+            command, text=True, stdout=sys.stdout, stderr=sys.stderr
+        )
 
         # Check the exit code
         if process.returncode != 0:
             print(
                 f"Error: Process failed for {filename} (index {index}) with exit code {process.returncode}"
             )
-            print(process.stderr)
             print(f"Last index processed: {index}")
             return
 

@@ -1,5 +1,6 @@
 use std::fmt;
 
+use anyhow::Context;
 use nom::number::complete::{u16, u8};
 use nom::number::Endianness;
 use nom::IResult;
@@ -60,7 +61,9 @@ impl Time {
             ))
         }
 
-        let (_, time) = parse_nom(input).map_err(|e| e.to_owned())?;
+        let (_, time) = parse_nom(input)
+            .map_err(|e| e.to_owned())
+            .context("Time parsing")?;
         assert_range(time.month, 12, 1)?;
         assert_range(time.day, 31, 1)?;
         assert_range(time.hour, 23, 0)?;

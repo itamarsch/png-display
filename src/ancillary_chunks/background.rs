@@ -42,7 +42,13 @@ impl Background {
                 (grayscale, grayscale, grayscale)
             }
             ColorType::Rgb { .. } | ColorType::Rgba => {
-                run_n!(3, read_value().map_err(|e| e.to_owned())?.1)
+                run_n!(
+                    3,
+                    read_value()
+                        .map_err(|e| e.to_owned())
+                        .context("Background parse RGB")?
+                        .1
+                )
             }
             ColorType::Palette(Palette { entries }) => {
                 let index = remaining_input[0] as usize;

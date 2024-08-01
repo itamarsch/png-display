@@ -1,3 +1,4 @@
+use anyhow::Context;
 use nom::{bytes::complete::take, number::complete::be_u32, IResult};
 
 #[derive(Debug)]
@@ -16,13 +17,15 @@ fn parse_chunk(input: &[u8]) -> anyhow::Result<(&[u8], RawChunk)> {
         Ok((input, (chunk_type, data, crc)))
     }
 
-    let (input, (chunk_type, data, crc)) = parse_nom(input).map_err(|e| e.to_owned())?;
+    let (input, (chunk_type, data, crc)) = parse_nom(input)
+        .map_err(|e| e.to_owned())
+        .context("Failed parsing chunk")?;
+
     let calculated_crc = calculate_crc(chunk_type, data);
+    let chunk_type = std::str::from_utf8(chunk_type)?;
     if crc != calculated_crc {
         anyhow::bail!("Invalid crc in chunk: {:?}", chunk_type);
     }
-
-    let chunk_type = std::str::from_utf8(chunk_type)?;
 
     Ok((input, RawChunk { chunk_type, data }))
 }

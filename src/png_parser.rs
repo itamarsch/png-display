@@ -76,7 +76,9 @@ impl<'a> Png<'a> {
             let (input, _) = tag(MAGIC_NUMBER)(input)?;
             Ok((input, ()))
         }
-        let (input, _) = read_magic_number(input).map_err(|e| e.to_owned())?;
+        let (input, _) = read_magic_number(input)
+            .map_err(|e| e.to_owned())
+            .context("Invalid magic number")?;
 
         let mut chunks = parse_chunks(input)?;
 

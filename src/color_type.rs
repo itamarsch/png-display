@@ -82,7 +82,7 @@ impl ColorType {
             }
             4 => Ok(ColorType::GrayscaleAlpha),
             6 => Ok(ColorType::Rgba),
-            e => Err(anyhow::anyhow!("Invliad color type: {}", e)),
+            e => Err(anyhow::anyhow!("Invalid color type: {}", e)),
         }
     }
     pub fn values_per_pixel(&self) -> u8 {

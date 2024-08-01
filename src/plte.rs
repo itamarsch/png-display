@@ -1,3 +1,4 @@
+use anyhow::Context;
 use nom::{number::complete::u8, IResult};
 
 pub const PLTE: &str = "PLTE";
@@ -29,13 +30,21 @@ pub fn parse_palette<'a>(input: &'a [u8], mut trns: Option<&'a [u8]>) -> anyhow:
     let mut remaining_input = input;
 
     while !remaining_input.is_empty() {
-        let (input, (r, g, b)) = read_pixel(input).map_err(|e| e.to_owned())?;
+        let (input, (r, g, b)) = read_pixel(remaining_input)
+            .map_err(|e| e.to_owned())
+            .context("Failed parsing palette pixel")?;
 
         let transpareny = if let Some(trns) = trns.as_mut() {
-            let (rest, transpareny) = read_transparency(trns).map_err(|e| e.to_owned())?;
-            *trns = rest;
+            if trns.is_empty() {
+                255
+            } else {
+                let (rest, transpareny) = read_transparency(trns)
+                    .map_err(|e| e.to_owned())
+                    .context("Failed parsing transpareny pixel")?;
+                *trns = rest;
 
-            transpareny
+                transpareny
+            }
         } else {
             255
         };

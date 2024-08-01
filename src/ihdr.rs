@@ -88,7 +88,9 @@ pub fn parse_ihdr<'a>(
     let (
         input,
         (width, height, bit_depth, color_type, compression_method, filter_method, interlace_method),
-    ) = parse_nom(input).map_err(|e| e.to_owned())?;
+    ) = parse_nom(input)
+        .map_err(|e| e.to_owned())
+        .context("Failed parsing ihdr")?;
 
     let color_type = ColorType::from_u8(color_type, bit_depth, plte, trns_content)?;
     let interlace_method = InterlaceMethod::from_u8(interlace_method)

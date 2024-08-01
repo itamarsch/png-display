@@ -75,6 +75,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "btparse-stable"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d75b8252ed252f881d1dc4482ae3c3854df6ee8183c1906bac50ff358f4f89f"
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -452,6 +458,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bitreader",
+ "btparse-stable",
  "color-print",
  "crc32fast",
  "inflate",

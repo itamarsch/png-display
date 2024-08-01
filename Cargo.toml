@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0.86", features = ["backtrace"] }
 bitreader = "0.3.8"
+btparse-stable = "0.1.2"
 color-print = "0.3.6"
 crc32fast = "1.4.2"
 inflate = "0.4.5"
