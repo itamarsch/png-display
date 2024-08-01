@@ -28,7 +28,7 @@ pub fn display_image(
     timeout: Option<Duration>,
     background: Option<(u8, u8, u8)>,
     gama: Option<Gama>,
-) {
+) -> anyhow::Result<()> {
     let height = image_data.len();
     let width = image_data[0].len();
     let grid_size = 10;
@@ -96,21 +96,17 @@ pub fn display_image(
         new_width,
         new_height,
         WindowOptions::default(),
-    )
-    .unwrap_or_else(|e| {
-        panic!("{}", e);
-    });
+    )?;
 
     let start_time = Instant::now();
     // Display the image
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        window
-            .update_with_buffer(&buffer, new_width, new_height)
-            .unwrap();
+        window.update_with_buffer(&buffer, new_width, new_height)?;
         if let Some(timeout) = timeout {
             if (Instant::now() - start_time) > timeout {
                 break;
             }
         }
     }
+    Ok(())
 }

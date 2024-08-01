@@ -27,14 +27,14 @@ pub fn decode_scanline(
     previous_scanline: Option<&[u8]>,
     bytes_per_pixel: usize,
     decoded_scanline: &mut [u8],
-) {
+) -> anyhow::Result<()> {
     let filter_type = match filtered_scanline[0] {
         0 => PngFilterType::None,
         1 => PngFilterType::Sub,
         2 => PngFilterType::Up,
         3 => PngFilterType::Average,
         4 => PngFilterType::Paeth,
-        _ => panic!("Invalid filter! {:?}", filtered_scanline[0]),
+        _ => anyhow::bail!("Invalid filter! {:?}", filtered_scanline[0]),
     };
     if !matches!(filter_type, PngFilterType::None) {
         // println!("{:?}", filter_type);
@@ -111,5 +111,6 @@ pub fn decode_scanline(
                 decoded_scanline[i] = decoded_byte;
             }
         }
-    }
+    };
+    Ok(())
 }

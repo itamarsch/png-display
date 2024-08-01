@@ -23,40 +23,50 @@ impl fmt::Display for Time {
         )
     }
 }
-
-fn assert_range<T>(value: T, top_limit: T, bottom: T)
+fn assert_range<T>(value: T, top_limit: T, bottom: T) -> anyhow::Result<()>
 where
-    T: PartialOrd,
+    T: PartialOrd + fmt::Display,
 {
-    assert!(value <= top_limit);
-    assert!(bottom <= value);
+    if value > top_limit {
+        anyhow::bail!("Invalid time value: {} > {}", value, top_limit);
+    }
+
+    if value < bottom {
+        anyhow::bail!("Invalid time value: {} < {}", value, bottom);
+    }
+    Ok(())
 }
 impl Time {
     pub const CHUNK_TYPE: &'static str = "tIME";
 
-    pub fn parse(input: &[u8]) -> IResult<&[u8], Time> {
-        let (input, year) = u16(Endianness::Big)(input)?;
-        let (input, month) = u8(input)?;
-        let (input, day) = u8(input)?;
-        let (input, hour) = u8(input)?;
-        let (input, minute) = u8(input)?;
-        let (input, second) = u8(input)?;
-        assert_range(month, 12, 1);
-        assert_range(day, 31, 1);
-        assert_range(hour, 23, 0);
-        assert_range(minute, 59, 0);
-        assert_range(second, 60, 0);
+    pub fn parse(input: &[u8]) -> anyhow::Result<Self> {
+        fn parse_nom(input: &[u8]) -> IResult<&[u8], Time> {
+            let (input, year) = u16(Endianness::Big)(input)?;
+            let (input, month) = u8(input)?;
+            let (input, day) = u8(input)?;
+            let (input, hour) = u8(input)?;
+            let (input, minute) = u8(input)?;
+            let (input, second) = u8(input)?;
+            Ok((
+                input,
+                Time {
+                    year,
+                    month,
+                    day,
+                    hour,
+                    minute,
+                    second,
+                },
+            ))
+        }
 
-        Ok((
-            input,
-            Time {
-                year,
-                month,
-                day,
-                hour,
-                minute,
-                second,
-            },
-        ))
+        let (_, time) = parse_nom(input).map_err(|e| e.to_owned())?;
+        assert_range(time.month, 12, 1)?;
+        assert_range(time.day, 31, 1)?;
+        assert_range(time.hour, 23, 0)?;
+        assert_range(time.minute, 59, 0)?;
+        assert_range(time.second, 60, 0)?;
+
+        Ok(time)
     }
 }

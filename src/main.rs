@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::Context;
 use draw_image::display_image;
 use std::fs::File;
 use std::io::Read;
@@ -13,19 +13,27 @@ pub mod plte;
 pub mod png_parser;
 pub mod run_n;
 
-fn main() -> Result<()> {
-    let mut file = File::open(std::env::args().nth(1).unwrap())?;
-    let mut buf = Vec::new();
-    file.read_to_end(&mut buf)?;
+fn main() -> anyhow::Result<()> {
+    let main_inner = || {
+        let filename = std::env::args().nth(1).context("No args passed")?;
 
-    let (_, png) = png_parser::Png::new(&buf).unwrap();
+        let mut file = File::open(filename)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
 
-    let pixels = png.get_pixels()?;
-    png.print_ancillary();
+        let png = png_parser::Png::new(&buf)?;
 
-    let bg = png.other_chunks.get_background();
-    let gama = png.other_chunks.get_gama();
+        let pixels = png.get_pixels()?;
+        png.print_ancillary();
 
-    display_image(pixels, 1.0, None, bg, gama);
-    Ok(())
+        let bg = png.other_chunks.get_background();
+        let gama = png.other_chunks.get_gama();
+
+        display_image(pixels, 1.0, None, bg, gama)
+    };
+    let res = main_inner();
+    if let Err(err) = &res {
+        println!("{}", err.backtrace());
+    }
+    res
 }

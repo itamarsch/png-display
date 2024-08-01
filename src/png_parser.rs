@@ -2,6 +2,7 @@ use crate::ancillary_chunks::{parse_ancillary_chunks, AncillaryChunks};
 use crate::chunk::RawChunk;
 use crate::filter_apply;
 use crate::ihdr::{self, IhdrChunk};
+use anyhow::{anyhow, Context};
 use bitreader::BitReader;
 use nom::{bytes::complete::tag, IResult};
 
@@ -27,23 +28,23 @@ fn take_chunk<'a>(chunks: &mut Vec<RawChunk<'a>>, chunk_type: &str) -> Option<Ra
         .map(|i| chunks.remove(i))
 }
 
-fn take_palette_chunk(chunks: &mut Vec<RawChunk>) -> Option<Palette> {
+fn take_palette_chunk(chunks: &mut Vec<RawChunk>) -> anyhow::Result<Option<Palette>> {
     let plte = take_chunk(chunks, plte::PLTE);
     if let Some(plte) = plte {
-        let trns = take_chunk(chunks, plte::TRNS).map(|c| c.data);
-        let (_, palette) = parse_palette(plte.data, trns).unwrap();
-        Some(palette)
+        let trns = take_chunk(chunks, TRNS).map(|c| c.data);
+        let palette = parse_palette(plte.data, trns)?;
+        Ok(Some(palette))
     } else {
-        None
+        Ok(None)
     }
 }
 
 const IDAT: &str = "IDAT";
-fn take_idta_chunks(chunks: &mut Vec<RawChunk>) -> Vec<u8> {
+fn take_idta_chunks(chunks: &mut Vec<RawChunk>) -> anyhow::Result<Vec<u8>> {
     let first_idat_index = chunks
         .iter()
         .position(|elem| elem.chunk_type == IDAT)
-        .unwrap();
+        .context("No idat chunk")?;
 
     let idat_indexes = chunks[first_idat_index..]
         .iter()
@@ -63,46 +64,50 @@ fn take_idta_chunks(chunks: &mut Vec<RawChunk>) -> Vec<u8> {
         chunks.remove(index);
     }
 
-    inflate::inflate_bytes_zlib(&data).unwrap()
+    inflate::inflate_bytes_zlib(&data)
+        .map_err(|e| anyhow!("Failed deompressing image data: {:?}", e))
 }
 
 impl<'a> Png<'a> {
-    pub fn new(input: &'a [u8]) -> IResult<&'a [u8], Self> {
+    pub fn new(input: &'a [u8]) -> anyhow::Result<Self> {
         const MAGIC_NUMBER: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
-        let (input, _) = tag(MAGIC_NUMBER)(input)?;
+        fn read_magic_number(input: &[u8]) -> IResult<&[u8], ()> {
+            let (input, _) = tag(MAGIC_NUMBER)(input)?;
+            Ok((input, ()))
+        }
+        let (input, _) = read_magic_number(input).map_err(|e| e.to_owned())?;
 
-        let (input, mut chunks) = parse_chunks(input)?;
+        let mut chunks = parse_chunks(input)?;
 
-        let palette = take_palette_chunk(&mut chunks);
+        let palette = take_palette_chunk(&mut chunks)?;
         let trns = if palette.is_some() {
             None
         } else {
-            take_chunk(&mut chunks, plte::TRNS)
+            take_chunk(&mut chunks, TRNS)
         }
         .map(|c| c.data);
-        println!("{:?}", trns);
 
         let ihdr = chunks.remove(0);
         let (_, ihdr) = parse_ihdr(ihdr.data, palette, trns)?;
         println!("{:?}", ihdr);
 
-        let data = take_idta_chunks(&mut chunks);
+        let data = take_idta_chunks(&mut chunks)?;
 
         const IEND: &str = "IEND";
         let iend = chunks.remove(chunks.len() - 1);
-        assert_eq!(iend.chunk_type, IEND);
-        assert!(iend.data.is_empty());
-
-        let non_requied_chunks = parse_ancillary_chunks(chunks, &ihdr);
-        Ok((
-            input,
-            Self {
-                ihdr,
-                data,
-                other_chunks: AncillaryChunks(non_requied_chunks),
-            },
-        ))
+        if iend.chunk_type != IEND {
+            anyhow::bail!("Last chunk isn't IEND");
+        }
+        if !iend.data.is_empty() {
+            anyhow::bail!("IEND isn't empty")
+        }
+        let non_requied_chunks = parse_ancillary_chunks(chunks, &ihdr)?;
+        Ok(Self {
+            ihdr,
+            data,
+            other_chunks: AncillaryChunks(non_requied_chunks),
+        })
     }
 
     pub fn get_pixels(&self) -> anyhow::Result<Image> {
@@ -151,7 +156,7 @@ impl<'a> Png<'a> {
                 prev_scanline.as_ref().map(|v: &Vec<u8>| &v[..]),
                 bpp,
                 &mut decoded,
-            );
+            )?;
 
             let mut scanline_reader = BitReader::new(&decoded);
 
@@ -206,7 +211,7 @@ impl<'a> Png<'a> {
                     prev_scanline.as_ref().map(|v: &Vec<u8>| &v[..]),
                     bpp,
                     &mut decoded,
-                );
+                )?;
 
                 let mut scanline_reader = BitReader::new(&decoded);
                 for j in (start_x..self.ihdr.width as usize).step_by(step_x) {

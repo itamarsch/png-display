@@ -1,10 +1,7 @@
+use anyhow::Context;
 use bitreader::BitReader;
 
-use crate::{
-    plte::{Palette, PaletteEntries},
-    png_parser::Pixel,
-    run_n,
-};
+use crate::{plte::Palette, png_parser::Pixel, run_n};
 
 #[derive(Debug)]
 pub enum ColorType {
@@ -34,37 +31,58 @@ impl ColorType {
         bit_depth: u8,
         plte: Option<Palette>,
         trns_content: Option<&[u8]>,
-    ) -> Option<ColorType> {
-        let read_trns_value = |buf: &[u8]| {
-            let v = u16::from_be_bytes(buf.try_into().unwrap());
-            if bit_depth == 8 {
-                map_pixel_value(bit_depth, v as u8)
+    ) -> anyhow::Result<ColorType> {
+        let read_trns_value = |buf: [u8; 2]| -> anyhow::Result<u8> {
+            let v = u16::from_be_bytes(buf);
+            if bit_depth <= 8 {
+                Ok(map_pixel_value(bit_depth, v as u8))
             } else {
-                (v >> 8) as u8
+                Ok((v >> 8) as u8)
             }
         };
         match value {
             0 => {
-                let transparent =
-                    trns_content.map(|trns_content| read_trns_value(&trns_content[..2]));
-                Some(ColorType::Grayscale { transparent })
+                let transparent = if let Some(trns_content) = trns_content {
+                    if trns_content.len() != 2 {
+                        anyhow::bail!("Invalid transparent buffer len")
+                    }
+                    let buf = (&trns_content[..2])
+                        .try_into()
+                        .expect("Slice len validated");
+
+                    Some(read_trns_value(buf)?)
+                } else {
+                    None
+                };
+
+                Ok(ColorType::Grayscale { transparent })
             }
             2 => {
-                let pixel = trns_content.map(|trns_content| {
-                    let r = read_trns_value(&trns_content[..2]);
-                    let g = read_trns_value(&trns_content[2..4]);
-                    let b = read_trns_value(&trns_content[4..6]);
-                    (r, g, b)
-                });
-                Some(ColorType::Rgb { transparent: pixel })
+                let pixel = if let Some(trns_content) = trns_content {
+                    if trns_content.len() != 6 {
+                        anyhow::bail!("Invalid transparent buffer len")
+                    }
+
+                    let r =
+                        read_trns_value((&trns_content[..2]).try_into().expect("Len validated"))?;
+                    let g =
+                        read_trns_value((&trns_content[2..4]).try_into().expect("Len validated"))?;
+                    let b =
+                        read_trns_value((&trns_content[4..6]).try_into().expect("Len validated"))?;
+                    Some((r, g, b))
+                } else {
+                    None
+                };
+
+                Ok(ColorType::Rgb { transparent: pixel })
             }
             3 => {
-                let plte = plte?;
-                Some(ColorType::Palette(plte))
+                let plte = plte.context("Expected palette for ColorType 3 but no one was found")?;
+                Ok(ColorType::Palette(plte))
             }
-            4 => Some(ColorType::GrayscaleAlpha),
-            6 => Some(ColorType::Rgba),
-            _ => None,
+            4 => Ok(ColorType::GrayscaleAlpha),
+            6 => Ok(ColorType::Rgba),
+            e => Err(anyhow::anyhow!("Invliad color type: {}", e)),
         }
     }
     pub fn values_per_pixel(&self) -> u8 {
@@ -144,28 +162,15 @@ impl ColorType {
                 let (r, g, b) = pixel;
                 (r, g, b, alpha)
             }
-            ColorType::Palette(Palette {
-                entries: PaletteEntries::RGBA(values),
-            }) => {
+            ColorType::Palette(Palette { entries }) => {
                 if bit_depth <= 8 {
                     let index = scanline_reader.read_u8(bit_depth)?;
-                    values[index as usize]
+                    entries[index as usize]
                 } else {
                     unreachable!("Invalid bitdepth")
                 }
             }
 
-            ColorType::Palette(Palette {
-                entries: PaletteEntries::RGB(values),
-            }) => {
-                if bit_depth <= 8 {
-                    let index = scanline_reader.read_u8(bit_depth)?;
-                    let (r, g, b) = values[index as usize];
-                    (r, g, b, 255)
-                } else {
-                    unreachable!("Invalid bitdepth")
-                }
-            }
             ColorType::GrayscaleAlpha => {
                 let (gray_scale, alpha) = if bit_depth == 8 {
                     run_n!(2, scanline_reader.read_u8(8)?)

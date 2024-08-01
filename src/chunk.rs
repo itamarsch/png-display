@@ -6,22 +6,23 @@ pub struct RawChunk<'a> {
     pub data: &'a [u8],
 }
 
-fn parse_chunk(input: &[u8]) -> IResult<&[u8], RawChunk> {
-    let (input, length) = be_u32(input)?;
-    let (input, chunk_type) = take(4usize)(input)?;
-    let (input, data) = take(length)(input)?;
-    let (input, crc) = be_u32(input)?;
-    let calculated_crc = calculate_crc(chunk_type, data);
-    if crc != calculated_crc {
-        panic!("Invalid crc!!");
+fn parse_chunk(input: &[u8]) -> anyhow::Result<(&[u8], RawChunk)> {
+    type ChunkValues<'a> = (&'a [u8], &'a [u8], u32);
+    fn parse_nom(input: &[u8]) -> IResult<&[u8], ChunkValues> {
+        let (input, length) = be_u32(input)?;
+        let (input, chunk_type) = take(4usize)(input)?;
+        let (input, data) = take(length)(input)?;
+        let (input, crc) = be_u32(input)?;
+        Ok((input, (chunk_type, data, crc)))
     }
 
-    let chunk_type = std::str::from_utf8(chunk_type).map_err(|_| {
-        nom::Err::Failure(nom::error::Error::new(
-            chunk_type,
-            nom::error::ErrorKind::Satisfy,
-        ))
-    })?;
+    let (input, (chunk_type, data, crc)) = parse_nom(input).map_err(|e| e.to_owned())?;
+    let calculated_crc = calculate_crc(chunk_type, data);
+    if crc != calculated_crc {
+        anyhow::bail!("Invalid crc in chunk: {:?}", chunk_type);
+    }
+
+    let chunk_type = std::str::from_utf8(chunk_type)?;
 
     Ok((input, RawChunk { chunk_type, data }))
 }
@@ -33,7 +34,7 @@ fn calculate_crc(chunk_type: &[u8], chunk_data: &[u8]) -> u32 {
     hasher.finalize()
 }
 
-pub fn parse_chunks(input: &[u8]) -> IResult<&[u8], Vec<RawChunk>> {
+pub fn parse_chunks(input: &[u8]) -> anyhow::Result<Vec<RawChunk>> {
     let mut chunks = Vec::new();
     let mut remaining_input = input;
 
@@ -43,5 +44,5 @@ pub fn parse_chunks(input: &[u8]) -> IResult<&[u8], Vec<RawChunk>> {
         chunks.push(chunk);
     }
 
-    Ok((remaining_input, chunks))
+    Ok(chunks)
 }

@@ -1,5 +1,6 @@
 use crate::{chunk::RawChunk, ihdr::IhdrChunk};
 
+use anyhow::Result;
 use color_print::cprintln;
 use text::{CompressedTextChunk, InternationalTextChunk, TextChunk};
 
@@ -66,33 +67,35 @@ impl<'a> AncillaryChunk<'a> {
 pub fn parse_ancillary_chunks<'a>(
     chunks: Vec<RawChunk<'a>>,
     ihdr: &IhdrChunk,
-) -> Vec<AncillaryChunk<'a>> {
+) -> anyhow::Result<Vec<AncillaryChunk<'a>>> {
     chunks
         .into_iter()
-        .map(|chunk| match chunk.chunk_type {
-            TextChunk::CHUNK_TYPE => AncillaryChunk::tEXt(TextChunk::parse(chunk.data).unwrap()),
-            CompressedTextChunk::CHUNK_TYPE => {
-                AncillaryChunk::zTXt(CompressedTextChunk::parse(chunk.data).unwrap().1)
-            }
-            InternationalTextChunk::CHUNK_TYPE => {
-                AncillaryChunk::iTXt(InternationalTextChunk::parse(chunk.data).unwrap().1)
-            }
-            Background::CHUNK_TYPE => AncillaryChunk::bKGD(Background::parse(
-                chunk.data,
-                &ihdr.color_type,
-                ihdr.bit_depth,
-            )),
-            Time::CHUNK_TYPE => AncillaryChunk::tIME(Time::parse(chunk.data).unwrap().1),
-            PhysicalUnits::CHUNK_TYPE => AncillaryChunk::pHYs(
-                PhysicalUnits::parse(chunk.data, ihdr.width, ihdr.height)
-                    .unwrap()
-                    .1,
-            ),
-            Gama::CHUNK_TYPE => AncillaryChunk::gAMA(Gama::parse(chunk.data)),
+        .map(|chunk| -> anyhow::Result<_> {
+            match chunk.chunk_type {
+                TextChunk::CHUNK_TYPE => Ok(AncillaryChunk::tEXt(TextChunk::parse(chunk.data)?)),
+                CompressedTextChunk::CHUNK_TYPE => Ok(AncillaryChunk::zTXt(
+                    CompressedTextChunk::parse(chunk.data)?,
+                )),
+                InternationalTextChunk::CHUNK_TYPE => Ok(AncillaryChunk::iTXt(
+                    InternationalTextChunk::parse(chunk.data)?,
+                )),
+                Background::CHUNK_TYPE => Ok(AncillaryChunk::bKGD(Background::parse(
+                    chunk.data,
+                    &ihdr.color_type,
+                    ihdr.bit_depth,
+                )?)),
+                Time::CHUNK_TYPE => Ok(AncillaryChunk::tIME(Time::parse(chunk.data)?)),
+                PhysicalUnits::CHUNK_TYPE => Ok(AncillaryChunk::pHYs(PhysicalUnits::parse(
+                    chunk.data,
+                    ihdr.width,
+                    ihdr.height,
+                )?)),
+                Gama::CHUNK_TYPE => Ok(AncillaryChunk::gAMA(Gama::parse(chunk.data)?)),
 
-            _ => AncillaryChunk::Unknown(chunk),
+                _ => Ok(AncillaryChunk::Unknown(chunk)),
+            }
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
 }
 impl<'a> AncillaryChunk<'a> {
     pub fn print(&self) {

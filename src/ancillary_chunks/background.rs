@@ -1,3 +1,4 @@
+use anyhow::Context;
 use nom::{
     number::{complete::u16, Endianness},
     IResult,
@@ -5,6 +6,7 @@ use nom::{
 
 use crate::{
     color_type::{map_pixel_value, ColorType},
+    plte::Palette,
     run_n,
 };
 
@@ -16,7 +18,7 @@ pub struct Background {
 impl Background {
     pub const CHUNK_TYPE: &'static str = "bKGD";
 
-    pub fn parse(input: &[u8], color_type: &ColorType, bit_depth: u8) -> Self {
+    pub fn parse(input: &[u8], color_type: &ColorType, bit_depth: u8) -> anyhow::Result<Self> {
         let mut remaining_input = input;
 
         let mut read_value = || -> IResult<&[u8], u8> {
@@ -34,24 +36,21 @@ impl Background {
 
         let color = match color_type {
             ColorType::Grayscale { .. } | ColorType::GrayscaleAlpha => {
-                let (_, grayscale) = read_value().unwrap();
+                let (_, grayscale) = read_value()
+                    .map_err(|e| e.to_owned())
+                    .context("Background parse grayscale")?;
                 (grayscale, grayscale, grayscale)
             }
             ColorType::Rgb { .. } | ColorType::Rgba => {
-                run_n!(3, read_value().unwrap().1)
+                run_n!(3, read_value().map_err(|e| e.to_owned())?.1)
             }
-            ColorType::Palette(r) => {
+            ColorType::Palette(Palette { entries }) => {
                 let index = remaining_input[0] as usize;
-                match &r.entries {
-                    crate::plte::PaletteEntries::RGB(rgb) => rgb[index],
-                    crate::plte::PaletteEntries::RGBA(rgba) => {
-                        let pixel = rgba[index];
-                        (pixel.0, pixel.1, pixel.2)
-                    }
-                }
+                let pixel = entries[index];
+                (pixel.0, pixel.1, pixel.2)
             }
         };
 
-        Self { color }
+        Ok(Self { color })
     }
 }

@@ -3,6 +3,7 @@ use std::{
     fmt::{self, Display},
 };
 
+use anyhow::{anyhow, Context};
 use nom::{bytes::complete::take_until, number::complete::u8, IResult};
 
 use crate::ihdr::CompressionMethod;
@@ -48,18 +49,28 @@ pub struct CompressedTextChunk<'a> {
 impl<'a> CompressedTextChunk<'a> {
     pub const CHUNK_TYPE: &'static str = "zTXt";
 
-    pub fn parse(input: &'a [u8]) -> IResult<&'a [u8], Self> {
-        let (input, keyword) = take_until(&[0][..])(input)?;
-        let (input, _) = u8(input)?;
-        let keyword = iso_8859_1_to_string(keyword);
+    pub fn parse(input: &'a [u8]) -> anyhow::Result<CompressedTextChunk> {
+        fn parse_nom(input: &[u8]) -> IResult<&[u8], (Cow<str>, u8)> {
+            let (input, keyword) = take_until(&[0][..])(input)?;
+            let keyword = iso_8859_1_to_string(keyword);
+            let (input, _) = u8(input)?;
+            let (input, compression_method) = u8(input)?;
+            Ok((input, (keyword, compression_method)))
+        }
 
-        let (input, compression_method) = u8(input)?;
+        let (compressed, (keyword, compression_method)) = parse_nom(input)
+            .map_err(|e| e.to_owned())
+            .context("zTXt chunk parsing")?;
 
-        let CompressionMethod::Zlib = CompressionMethod::from_u8(compression_method).unwrap();
+        let CompressionMethod::Zlib = CompressionMethod::from_u8(compression_method)
+            .context("Compression method value zTXt")?;
 
-        let text = iso_8859_1_to_owned_string(inflate::inflate_bytes_zlib(input).unwrap());
+        let text = iso_8859_1_to_owned_string(
+            inflate::inflate_bytes_zlib(compressed)
+                .map_err(|e| anyhow!("Failed decompression the zTXt chunk: {:?}", e))?,
+        );
 
-        Ok((input, CompressedTextChunk { text, keyword }))
+        Ok(CompressedTextChunk { text, keyword })
     }
 }
 
@@ -87,41 +98,60 @@ impl CompressionFlags {
 
 impl<'a> InternationalTextChunk<'a> {
     pub const CHUNK_TYPE: &'static str = "iTXt";
-    pub fn parse(input: &'a [u8]) -> IResult<&'a [u8], Self> {
-        let (input, keyword) = take_until(&[0][..])(input)?;
-        let (input, _) = u8(input)?;
+    pub fn parse(input: &'a [u8]) -> anyhow::Result<Self> {
+        type ITXTRaw<'a> = (&'a [u8], u8, u8, &'a [u8], &'a [u8]);
+        fn parse_nom(input: &[u8]) -> IResult<&[u8], ITXTRaw> {
+            let (input, keyword) = take_until(&[0][..])(input)?;
+            let (input, _) = u8(input)?;
 
-        let keyword = std::str::from_utf8(keyword).unwrap();
-        let (input, compression_flags) = u8(input)?;
-        let (input, compression_method) = u8(input)?;
+            let (input, compression_flags) = u8(input)?;
+            let (input, compression_method) = u8(input)?;
 
-        let CompressionMethod::Zlib = CompressionMethod::from_u8(compression_method).unwrap();
-        let compression_flag = CompressionFlags::from_u8(compression_flags).unwrap();
+            let (input, language_tag) = take_until(&[0][..])(input)?;
+            let (input, _) = u8(input)?;
 
-        let (input, language_tag) = take_until(&[0][..])(input)?;
-        let (input, _) = u8(input)?;
-        let language_tag = std::str::from_utf8(language_tag).unwrap();
+            let (input, translated) = take_until(&[0][..])(input)?;
+            let (input, _) = u8(input)?;
+            Ok((
+                input,
+                (
+                    keyword,
+                    compression_flags,
+                    compression_method,
+                    language_tag,
+                    translated,
+                ),
+            ))
+        }
 
-        let (input, translated) = take_until(&[0][..])(input)?;
-        let (input, _) = u8(input)?;
-        let translated_keyword = std::str::from_utf8(translated).unwrap();
+        let (input, (keyword, compression_flags, compression_method, language_tag, translated)) =
+            parse_nom(input)
+                .map_err(|e| e.to_owned())
+                .context("iTXt parsing")?;
+
+        let CompressionMethod::Zlib =
+            CompressionMethod::from_u8(compression_method).context("CompressionMethod from_u8")?;
+
+        let compression_flag =
+            CompressionFlags::from_u8(compression_flags).context("CompressionFlags from_u8")?;
+        let keyword = std::str::from_utf8(keyword)?;
+        let language_tag = std::str::from_utf8(language_tag)?;
+        let translated_keyword = std::str::from_utf8(translated)?;
 
         let text = match compression_flag {
-            CompressionFlags::NoCompression => Cow::Borrowed(std::str::from_utf8(input).unwrap()),
-            CompressionFlags::Compression => {
-                Cow::Owned(String::from_utf8(inflate::inflate_bytes_zlib(input).unwrap()).unwrap())
-            }
+            CompressionFlags::NoCompression => Cow::Borrowed(std::str::from_utf8(input)?),
+            CompressionFlags::Compression => Cow::Owned(String::from_utf8(
+                inflate::inflate_bytes_zlib(input)
+                    .map_err(|e| anyhow!("Failed decompressing iTXt: {:?}", e))?,
+            )?),
         };
 
-        Ok((
-            input,
-            InternationalTextChunk {
-                keyword,
-                language_tag,
-                translated_keyword,
-                text,
-            },
-        ))
+        Ok(InternationalTextChunk {
+            keyword,
+            language_tag,
+            translated_keyword,
+            text,
+        })
     }
 }
 
