@@ -24,7 +24,7 @@ fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
 
 pub fn decode_scanline(
     filtered_scanline: &[u8],
-    previous_scanline: Option<&[u8]>,
+    previous_scanline: &[u8],
     bytes_per_pixel: usize,
     decoded_scanline: &mut [u8],
 ) -> anyhow::Result<()> {
@@ -59,11 +59,7 @@ pub fn decode_scanline(
         }
         PngFilterType::Up => {
             for i in 0..filtered_scanline.len() {
-                let above = if let Some(previous) = previous_scanline {
-                    previous[i]
-                } else {
-                    0
-                };
+                let above = previous_scanline[i];
                 let decoded_byte = filtered_scanline[i].wrapping_add(above);
                 decoded_scanline[i] = decoded_byte;
             }
@@ -75,11 +71,7 @@ pub fn decode_scanline(
                 } else {
                     0
                 };
-                let above = if let Some(previous) = previous_scanline {
-                    previous[i]
-                } else {
-                    0
-                };
+                let above = previous_scanline[i];
                 let decoded_byte =
                     filtered_scanline[i].wrapping_add(((left as u16 + above as u16) / 2) as u8);
                 decoded_scanline[i] = decoded_byte;
@@ -92,17 +84,9 @@ pub fn decode_scanline(
                 } else {
                     0
                 };
-                let above = if let Some(previous) = previous_scanline {
-                    previous[i]
-                } else {
-                    0
-                };
-                let top_left = if let Some(previous) = previous_scanline {
-                    if i >= bytes_per_pixel {
-                        previous[i - bytes_per_pixel]
-                    } else {
-                        0
-                    }
+                let above = previous_scanline[i];
+                let top_left = if i >= bytes_per_pixel {
+                    previous_scanline[i - bytes_per_pixel]
                 } else {
                     0
                 };

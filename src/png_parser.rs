@@ -140,25 +140,20 @@ impl<'a> Png<'a> {
 
         let mut pixels =
             vec![vec![(0, 0, 0, 0); self.ihdr.width as usize]; self.ihdr.height as usize];
-        let mut prev_scanline = None;
 
         let values_per_pixel = self.ihdr.color_type.values_per_pixel() as u32;
         let bits_in_scanline = self.ihdr.bit_depth as u32 * values_per_pixel * self.ihdr.width;
         let scanline_len = 1 + (bits_in_scanline as usize).div_ceil(8);
 
         let mut scanline = vec![0; scanline_len];
+        let mut prev_scanline = vec![0; scanline_len - 1];
         let mut decoded = vec![0; scanline_len - 1];
 
         let bpp = self.bpp();
         for i in 0..self.ihdr.height {
             bitreader.read_u8_slice(&mut scanline)?;
 
-            filter_apply::decode_scanline(
-                &scanline[..],
-                prev_scanline.as_ref().map(|v: &Vec<u8>| &v[..]),
-                bpp,
-                &mut decoded,
-            )?;
+            filter_apply::decode_scanline(&scanline[..], &prev_scanline[..], bpp, &mut decoded)?;
 
             let mut scanline_reader = BitReader::new(&decoded);
 
@@ -169,7 +164,7 @@ impl<'a> Png<'a> {
                     .read_pixel(self.ihdr.bit_depth, &mut scanline_reader)?;
             }
 
-            prev_scanline = Some(decoded.clone());
+            prev_scanline.clone_from_slice(&decoded[..]);
         }
 
         Ok(pixels)
@@ -190,7 +185,6 @@ impl<'a> Png<'a> {
 
         let mut pixels =
             vec![vec![(0, 0, 0, 0); self.ihdr.width as usize]; self.ihdr.height as usize];
-        let mut prev_scanline = None;
 
         for ((start_x, start_y), (step_x, step_y)) in adam7_passes {
             if (self.ihdr.width as usize) <= start_x || (self.ihdr.height as usize) <= start_y {
@@ -203,6 +197,7 @@ impl<'a> Png<'a> {
 
             let scanline_len = scanline_len as usize;
             let mut scanline = vec![0; scanline_len];
+            let mut prev_scanline = vec![0; scanline_len - 1];
             let mut decoded = vec![0; scanline_len - 1];
             for i in (start_y..self.ihdr.height as usize).step_by(step_y) {
                 let bpp = self.bpp();
@@ -210,7 +205,7 @@ impl<'a> Png<'a> {
 
                 filter_apply::decode_scanline(
                     &scanline[..],
-                    prev_scanline.as_ref().map(|v: &Vec<u8>| &v[..]),
+                    &prev_scanline[..],
                     bpp,
                     &mut decoded,
                 )?;
@@ -222,7 +217,7 @@ impl<'a> Png<'a> {
                         .color_type
                         .read_pixel(self.ihdr.bit_depth, &mut scanline_reader)?;
                 }
-                prev_scanline = Some(decoded.clone());
+                prev_scanline.clone_from_slice(&decoded[..]);
             }
         }
 
